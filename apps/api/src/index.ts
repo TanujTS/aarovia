@@ -15,13 +15,30 @@ import { rateLimitMiddleware } from './middleware/rateLimiter';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3002;
 
 // Security middleware
 app.use(helmet());
+
+// CORS configuration for development
+const allowedOrigins = [
+  'http://localhost:3000',      // Next.js app
+  'http://localhost:3001',      // Next.js app (alternative port)
+  'http://127.0.0.1:3000',     // Next.js app (alternative)
+  'http://127.0.0.1:3001',     // Next.js app (alternative)
+  'http://localhost:5500',      // Live Server
+  'http://127.0.0.1:5500',     // Live Server (alternative)
+  'http://localhost:8080',      // Other dev servers
+  'http://127.0.0.1:8080',     // Other dev servers (alternative)
+  'file://',                    // Direct file access
+  process.env.FRONTEND_URL || 'http://localhost:3000'
+];
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-  credentials: true
+  origin: allowedOrigins,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 // Request parsing

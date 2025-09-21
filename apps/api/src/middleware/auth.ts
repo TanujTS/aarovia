@@ -1,7 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { createError } from './errorHandler';
+import dotenv from 'dotenv';
 
+dotenv.config({
+  path: "../../.env"
+});
 export interface AuthenticatedRequest extends Request {
   user?: {
     id: string;
@@ -24,7 +28,11 @@ export const authenticateToken = (
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      return res.status(500).json({ message: 'JWT secret not configured' });  
+    }
+    const decoded = jwt.verify(token, jwtSecret) as any;
     req.user = decoded;
     next();
   } catch (error) {

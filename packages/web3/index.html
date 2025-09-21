@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>MetaMask Connect Test</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      button {
+        background: #4CAF50;
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 16px;
+      }
+      button:hover {
+        background: #45a049;
+      }
+      #results {
+        margin-top: 20px;
+        font-family: monospace;
+        background: #f5f5f5;
+        padding: 15px;
+        border-radius: 5px;
+      }
+      textarea {
+        width: 100%;
+        height: 120px;
+        font-family: monospace;
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>🔗 MetaMask Wallet Connect Test</h1>
+    <button id="connectButton">Connect Wallet</button>
+    <div id="status" style="margin-top: 10px; color: #666;"></div>
+    <div id="results"></div>
+
+    <script>
+      async function connectWallet() {
+        const statusDiv = document.getElementById('status');
+        const resultsDiv = document.getElementById('results');
+        
+        statusDiv.innerHTML = '⏳ Checking for MetaMask...';
+        
+        if (typeof window.ethereum !== 'undefined') {
+          try {
+            statusDiv.innerHTML = '🔄 Requesting account access...';
+            
+            // 🔹 Ask MetaMask to connect
+            const accounts = await window.ethereum.request({
+              method: "eth_requestAccounts",
+            });
+            console.log("Connected:", accounts[0]);
+
+            statusDiv.innerHTML = '🔄 Getting network info...';
+
+            // 🔹 Get network ID using direct ethereum request
+            const networkId = await window.ethereum.request({
+              method: 'net_version'
+            });
+            console.log("Network ID:", networkId);
+
+            // 🔹 Get the actual wallet address
+            const walletAddress = accounts[0];
+            console.log("Wallet Address:", walletAddress);
+
+            statusDiv.innerHTML = '✍️ Please sign the message in MetaMask...';
+
+            // 🔹 Create message to sign (this is what the API expects)
+            const message = "Sign this message to authenticate with Aarovia Medical Records";
+            
+            // 🔹 Request signature from MetaMask
+            const signature = await window.ethereum.request({
+              method: "personal_sign",
+              params: [message, walletAddress],
+            });
+            console.log("Signature:", signature);
+
+            statusDiv.innerHTML = '✅ Successfully connected and signed!';
+
+            // 🔹 Now you can use these for API login
+            const loginData = {
+              address: walletAddress,
+              signature: signature,
+              message: message
+            };
+            console.log("Login Data for API:", loginData);
+
+            // 🔹 Display results on page
+            resultsDiv.innerHTML = `
+              <h3>✅ Connected Successfully!</h3>
+              <p><strong>Address:</strong> <code>${walletAddress}</code></p>
+              <p><strong>Network ID:</strong> ${networkId}</p>
+              <p><strong>Message:</strong> <em>"${message}"</em></p>
+              <p><strong>Signature:</strong> <code>${signature.substring(0, 30)}...${signature.substring(signature.length-10)}</code></p>
+              <h4>📋 Copy this JSON for Postman:</h4>
+              <textarea readonly onclick="this.select()">${JSON.stringify(loginData, null, 2)}</textarea>
+              <br><br>
+              <button onclick="testAPI()" style="background: #2196F3;">🔬 Test API Login</button>
+            `;
+
+            // Store login data globally for API test
+            window.loginData = loginData;
+
+          } catch (err) {
+            console.error("Error:", err);
+            statusDiv.innerHTML = '❌ Error: ' + err.message;
+            resultsDiv.innerHTML = `
+              <div style="color: red;">
+                <h3>❌ Connection Failed</h3>
+                <p><strong>Error:</strong> ${err.message}</p>
+                <p><strong>Troubleshooting:</strong></p>
+                <ul>
+                  <li>Make sure MetaMask is installed and unlocked</li>
+                  <li>Refresh the page and try again</li>
+                  <li>Check browser console for detailed errors</li>
+                </ul>
+              </div>
+            `;
+          }
+        } else {
+          statusDiv.innerHTML = '❌ MetaMask not detected';
+          resultsDiv.innerHTML = `
+            <div style="color: red;">
+              <h3>❌ MetaMask Not Found</h3>
+              <p>Please install MetaMask browser extension:</p>
+              <a href="https://metamask.io/download/" target="_blank">Download MetaMask</a>
+            </div>
+          `;
+        }
+      }
+
+      // Test API function
+      async function testAPI() {
+        if (!window.loginData) {
+          alert('Please connect wallet first!');
+          return;
+        }
+
+        const statusDiv = document.getElementById('status');
+        statusDiv.innerHTML = '🔄 Testing API login...';
+
+        try {
+          const response = await fetch('http://localhost:3002/api/auth/login', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(window.loginData)
+          });
+
+          const result = await response.json();
+          console.log("API Response:", result);
+
+          if (response.ok) {
+            statusDiv.innerHTML = '✅ API login successful!';
+            document.getElementById('results').innerHTML += `
+              <div style="background: #e8f5e8; padding: 10px; margin-top: 10px; border-radius: 5px;">
+                <h4>🎉 API Login Success!</h4>
+                <pre>${JSON.stringify(result, null, 2)}</pre>
+              </div>
+            `;
+          } else {
+            throw new Error(result.message || 'API login failed');
+          }
+        } catch (err) {
+          statusDiv.innerHTML = '❌ API test failed: ' + err.message;
+          document.getElementById('results').innerHTML += `
+            <div style="background: #ffe8e8; padding: 10px; margin-top: 10px; border-radius: 5px;">
+              <h4>❌ API Error</h4>
+              <p>${err.message}</p>
+              <p><small>Make sure your API server is running on http://localhost:3002</small></p>
+            </div>
+          `;
+        }
+      }
+
+      // Wait for DOM to load
+      document.addEventListener('DOMContentLoaded', function() {
+        document.getElementById("connectButton").addEventListener("click", connectWallet);
+      });
+    </script>
+  </body>
+</html>

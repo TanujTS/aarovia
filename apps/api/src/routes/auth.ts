@@ -51,13 +51,15 @@ router.post('/login', async (req, res, next) => {
       email: 'user@example.com'
     };
 
+    const jwtSecret = process.env.JWT_SECRET || 'aarovia-dev-fallback-secret-2025';
+    
     const token = jwt.sign(
       { 
         id: user.id, 
         address: user.address, 
         role: user.role 
       },
-      process.env.JWT_SECRET!,
+      jwtSecret,
       { expiresIn: '7d' }
     );
 

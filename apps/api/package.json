@@ -4,16 +4,15 @@
   "description": "Express API server for medical records platform",
   "private": true,
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "build": "tsc",
-    "start": "node dist/index.js",
+    "dev": "bun --hot src/index.ts",
+    "build": "bun run tsc",
+    "start": "bun dist/index.js",
     "lint": "eslint . --max-warnings 0",
-    "type-check": "tsc --noEmit",
-    "test": "jest",
+    "type-check": "bun run tsc --noEmit",
+    "test": "bun test",
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@aarovia/database": "file:../../packages/database",
     "@aarovia/types": "file:../../packages/types",
     "@aarovia/web3": "file:../../packages/web3",
     "bcryptjs": "^2.4.3",

@@ -1,148 +1,119 @@
 import { Router } from 'express';
-import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { z } from 'zod';
-// import { db } from '@medical-records/database';
-// import { users } from '@medical-records/database/schema';
-import { createError } from '../middleware/errorHandler';
+import { ethers } from 'ethers';
 
 const router = Router();
 
-const loginSchema = z.object({
-  address: z.string().min(1, 'Wallet address is required'),
-  signature: z.string().min(1, 'Signature is required'),
-  message: z.string().min(1, 'Message is required')
-});
-
-const registerSchema = z.object({
-  address: z.string().min(1, 'Wallet address is required'),
-  email: z.string().email('Invalid email format'),
-  role: z.enum(['patient', 'provider']),
-  profile: z.object({
-    firstName: z.string().min(1),
-    lastName: z.string().min(1),
-    phone: z.string().optional(),
-    dateOfBirth: z.string().optional()
-  })
-});
-
-// Wallet-based authentication
-router.post('/login', async (req, res, next) => {
+// Middleware to verify wallet signature
+async function verifySignature(address: string, signature: string, message: string): Promise<boolean> {
   try {
-    const { address, signature, message } = loginSchema.parse(req.body);
-
-    // TODO: Verify signature with ethers.js
-    // const isValidSignature = await verifySignature(address, message, signature);
-    // if (!isValidSignature) {
-    //   return next(createError('Invalid signature', 401));
-    // }
-
-    // TODO: Find user in database
-    // const user = await db.select().from(users).where(eq(users.address, address));
-    // if (!user.length) {
-    //   return next(createError('User not found', 404));
-    // }
-
-    // Mock user for now
-    const user = {
-      id: '1',
-      address,
-      role: 'patient',
-      email: 'user@example.com'
-    };
-
-    const token = jwt.sign(
-      { 
-        id: user.id, 
-        address: user.address, 
-        role: user.role 
-      },
-      process.env.JWT_SECRET!,
-      { expiresIn: '7d' }
-    );
-
-    res.json({
-      success: true,
-      data: {
-        user,
-        token
-      }
-    });
+    const recoveredAddress = ethers.verifyMessage(message, signature);
+    return recoveredAddress.toLowerCase() === address.toLowerCase();
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return next(createError(error.errors[0].message, 400));
-    }
-    next(error);
+    return false;
   }
-});
+}
 
-// Register new user
-router.post('/register', async (req, res, next) => {
+// Generate authentication challenge
+router.post('/challenge', (req, res) => {
   try {
-    const userData = registerSchema.parse(req.body);
-
-    // TODO: Check if user already exists
-    // const existingUser = await db.select().from(users)
-    //   .where(eq(users.address, userData.address));
+    const { address } = req.body;
     
-    // if (existingUser.length > 0) {
-    //   return next(createError('User already exists', 409));
-    // }
-
-    // TODO: Create user in database
-    // const newUser = await db.insert(users).values({
-    //   ...userData,
-    //   createdAt: new Date(),
-    //   updatedAt: new Date()
-    // }).returning();
-
-    const newUser = {
-      id: '1',
-      ...userData,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
-
-    const token = jwt.sign(
-      { 
-        id: newUser.id, 
-        address: newUser.address, 
-        role: newUser.role 
-      },
-      process.env.JWT_SECRET!,
-      { expiresIn: '7d' }
-    );
-
-    res.status(201).json({
-      success: true,
-      data: {
-        user: newUser,
-        token
-      }
-    });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return next(createError(error.errors[0].message, 400));
+    if (!address || !ethers.isAddress(address)) {
+      return res.status(400).json({ error: 'Valid wallet address required' });
     }
-    next(error);
-  }
-});
-
-// Get nonce for wallet signature
-router.get('/nonce/:address', async (req, res, next) => {
-  try {
-    const { address } = req.params;
     
-    // Generate a unique nonce for signature verification
-    const nonce = `Please sign this message to authenticate: ${Date.now()}`;
+    // Generate a unique challenge message
+    const timestamp = Date.now();
+    const nonce = Math.random().toString(36).substring(2);
+    const message = `Sign this message to authenticate with Medical Records DApp.\n\nTimestamp: ${timestamp}\nNonce: ${nonce}\nAddress: ${address}`;
     
     res.json({
-      success: true,
-      data: { nonce }
+      message,
+      timestamp,
+      nonce
     });
   } catch (error) {
-    next(error);
+    console.error('Challenge generation error:', error);
+    res.status(500).json({ error: 'Failed to generate challenge' });
   }
 });
 
-export { router as authRoutes };
+// Verify signature and issue JWT
+router.post('/verify', async (req, res) => {
+  try {
+    const { address, signature, message, timestamp } = req.body;
+    
+    if (!address || !signature || !message || !timestamp) {
+      return res.status(400).json({ error: 'Address, signature, message, and timestamp required' });
+    }
+    
+    if (!ethers.isAddress(address)) {
+      return res.status(400).json({ error: 'Invalid wallet address' });
+    }
+    
+    // Check if timestamp is recent (within 5 minutes)
+    const now = Date.now();
+    if (now - timestamp > 5 * 60 * 1000) {
+      return res.status(400).json({ error: 'Challenge expired' });
+    }
+    
+    // Verify the signature
+    const isValid = await verifySignature(address, signature, message);
+    if (!isValid) {
+      return res.status(401).json({ error: 'Invalid signature' });
+    }
+    
+    // Generate JWT token
+    const token = jwt.sign(
+      { 
+        address: address.toLowerCase(),
+        timestamp: now
+      },
+      process.env.JWT_SECRET || 'default-secret',
+      { expiresIn: '24h' }
+    );
+    
+    res.json({
+      token,
+      address: address.toLowerCase(),
+      expiresIn: '24h'
+    });
+  } catch (error) {
+    console.error('Verification error:', error);
+    res.status(500).json({ error: 'Authentication failed' });
+  }
+});
+
+// Verify JWT token middleware
+export function authenticateToken(req: any, res: any, next: any) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  
+  if (!token) {
+    return res.status(401).json({ error: 'Access token required' });
+  }
+  
+  jwt.verify(token, process.env.JWT_SECRET || 'default-secret', (err: any, user: any) => {
+    if (err) {
+      return res.status(403).json({ error: 'Invalid or expired token' });
+    }
+    req.user = user;
+    next();
+  });
+}
+
+// Get current user info
+router.get('/me', authenticateToken, (req: any, res) => {
+  res.json({
+    address: req.user.address,
+    timestamp: req.user.timestamp
+  });
+});
+
+// Health check
+router.get('/health', (req, res) => {
+  res.json({ status: 'ok', service: 'auth' });
+});
+
+export default router;

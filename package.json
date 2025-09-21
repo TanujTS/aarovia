@@ -5,7 +5,9 @@
   "private": true,
   "workspaces": [
     "apps/*",
-    "packages/*"
+    "packages/types",
+    "packages/web3",
+    "packages/config"
   ],
   "scripts": {
     "build": "turbo build",
@@ -16,9 +18,7 @@
     "type-check": "turbo type-check",
     "test": "turbo test",
     "setup": "bun install && bun run build",
-    "db:generate": "turbo db:generate",
-    "db:push": "turbo db:push",
-    "db:migrate": "turbo db:migrate"
+    "compile-contracts": "bun --cwd packages/web3 run compile"
   },
   "devDependencies": {
     "@turbo/gen": "^1.10.12",

@@ -1,6 +1,17 @@
-# 🏥 Decentralized Medical Records Platform (MedChain)
+# 🏥 Decentralized Medical Records Platform
 
-A revolutionary blockchain-powered platform for secure, patient-controlled medical record management built with modern technologies.
+A revolutionary blockchain-powered platform for secure, patient-controlled medical record management built on Polygon with IPFS storage and end-to-end encryption.
+
+## ✨ Key Features
+
+- **🔐 End-to-End Encryption**: All medical files are encrypted client-side before upload
+- **🌐 Decentralized Storage**: Files stored on IPFS with Web3.Storage
+- **⛓️ Blockchain Security**: Access control managed via smart contracts on Polygon
+- **👛 Custodial Wallets**: Seamless user experience with server-managed wallets
+- **📧 Email/OTP Authentication**: No crypto knowledge required for users
+- **🆘 Emergency Access**: ICE (In Case of Emergency) profiles for critical situations
+- **🔄 Access Control**: Grant/revoke access to medical records with expiration dates
+- **📱 Responsive Design**: Modern UI that works on all devices
 
 ## 🏗️ Project Structure
 
@@ -9,35 +20,37 @@ This is a [Turborepo](https://turbo.build/repo) monorepo with the following stru
 ```
 devjams/
 ├── apps/
-│   ├── web/              # Next.js 14 frontend (Patient/Doctor dashboard)
-│   │   ├── src/app/      # App router pages
-│   │   ├── src/components/ # React components
-│   │   └── src/styles/   # Global styles
+│   ├── web/              # Next.js 14 frontend with TypeScript
+│   │   ├── src/app/      # App router pages (login, dashboard, upload, ICE)
+│   │   ├── src/components/ # UI components and layout
+│   │   └── src/utils/    # Client-side utilities and encryption
 │   └── api/              # Express.js API server
-│       ├── src/routes/   # API endpoints
-│       ├── src/middleware/ # Auth, validation, etc.
-│       └── src/index.ts  # Server entry point
+│       ├── src/routes/   # API endpoints (auth, patients, records, web3)
+│       ├── src/middleware/ # Auth, rate limiting, error handling
+│       └── src/services/ # Business logic and contract interactions
 ├── packages/
-│   ├── database/         # Drizzle ORM schemas and migrations
-│   │   ├── src/schema/   # Database tables and relations
-│   │   └── drizzle.config.ts # Drizzle configuration
-│   ├── web3/             # Blockchain integration utilities
-│   │   ├── src/wallet.ts # Wallet operations
-│   │   ├── src/contracts.ts # Smart contract interactions
-│   │   └── src/ipfs.ts   # IPFS file storage
+│   ├── database/         # Drizzle ORM with PostgreSQL
+│   │   ├── src/schema/   # User accounts, records, access control
+│   │   └── migrations/   # Database schema changes
+│   ├── web3/             # Blockchain and smart contracts
+│   │   ├── contracts/    # Solidity smart contracts
+│   │   ├── src/          # Wallet operations, IPFS, contract interactions
+│   │   └── ignition/     # Hardhat deployment scripts
 │   ├── types/            # Shared TypeScript types
 │   └── config/           # Shared configuration
 ├── .env.example          # Environment variables template
-├── setup.sh              # Automated setup script
+├── DEPLOYMENT.md         # Detailed deployment guide
+├── test-integration.sh   # Integration testing script
 └── turbo.json            # Turborepo configuration
 ```
 
 ## 🚀 Quick Start
 
 ### Prerequisites
-- **Node.js 18+** - [Download here](https://nodejs.org/)
-- **PostgreSQL** - Local installation or [Neon DB](https://neon.tech/) cloud database
-- **Git** - For version control
+- **Node.js 18+** and **Bun** - [Install Bun](https://bun.sh/)
+- **PostgreSQL** - Local installation or cloud database
+- **Polygon Mumbai Testnet** - Get MATIC from [faucet](https://faucet.polygon.technology/)
+- **Web3.Storage Account** - Sign up at [web3.storage](https://web3.storage/)
 
 ### Automated Setup
 
@@ -46,8 +59,8 @@ devjams/
 git clone <your-repo-url>
 cd devjams
 
-# Run the automated setup script
-./setup.sh
+# Run the integration test (this also validates setup)
+./test-integration.sh
 ```
 
 ### Manual Setup

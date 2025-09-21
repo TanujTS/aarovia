@@ -4,11 +4,11 @@
   "description": "Next.js frontend for medical records platform",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint",
-    "type-check": "tsc --noEmit",
+    "dev": "bun run next dev",
+    "build": "bun run next build",
+    "start": "bun run next start",
+    "lint": "bun run next lint",
+    "type-check": "bun run tsc --noEmit",
     "clean": "rm -rf .next"
   },
   "dependencies": {

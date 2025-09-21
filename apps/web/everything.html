@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Local Hardhat Test</title>
+</head>
+<body>
+  <h1>Hardhat Local Node Test</h1>
+  
+  <button id="listAccounts">List Accounts</button>
+  <ul id="accountsList"></ul>
+
+  <h2>Send ETH</h2>
+  <input id="from" placeholder="From Account" style="width:400px" />
+  <input id="to" placeholder="To Account" style="width:400px" />
+  <input id="amount" placeholder="Amount in ETH" />
+  <button id="sendTx">Send Transaction</button>
+
+  <p id="status"></p>
+
+  <script type="module">
+    import { ethers } from "https://cdn.jsdelivr.net/npm/ethers@6.9.1/dist/ethers.esm.min.js";
+
+    // Connect to Hardhat local node
+    const provider = new ethers.JsonRpcProvider('http://127.0.0.1:8545');
+
+    const listBtn = document.getElementById('listAccounts');
+    const accountsList = document.getElementById('accountsList');
+    const status = document.getElementById('status');
+
+    listBtn.onclick = async () => {
+      accountsList.innerHTML = '';
+      const accounts = await provider.listAccounts();
+      accounts.forEach(acc => {
+        const li = document.createElement('li');
+        li.textContent = acc;
+        accountsList.appendChild(li);
+      });
+    };
+
+    document.getElementById('sendTx').onclick = async () => {
+      const from = document.getElementById('from').value.trim();
+      const to = document.getElementById('to').value.trim();
+      const amount = document.getElementById('amount').value.trim();
+
+      if (!from || !to || !amount) {
+        status.textContent = 'Fill all fields';
+        return;
+      }
+
+      try {
+        // Hardhat accounts are unlocked by default, can use signer
+        const signer = provider.getSigner(from);
+
+        const tx = await signer.sendTransaction({
+          to,
+          value: ethers.parseEther(amount)
+        });
+
+        status.textContent = `Transaction sent! Hash: ${tx.hash}`;
+        console.log(tx);
+      } catch (err) {
+        console.error(err);
+        status.textContent = 'Error: ' + err.message;
+      }
+    };
+  </script>
+</body>
+</html>

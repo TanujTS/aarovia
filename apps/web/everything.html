@@ -2,20 +2,32 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Local Hardhat Test</title>
+  <title>Hardhat + MetaMask Test</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; }
+    button { margin: 5px 0; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 14px; }
+    #connectWallet { background-color: #4CAF50; color: white; border: none; }
+    #connectWallet:hover { background-color: #45a049; }
+    #sendTx, #listAccounts { background-color: #2196F3; color: white; border: none; }
+    #sendTx:hover, #listAccounts:hover { background-color: #1976D2; }
+    input { margin: 5px 0; padding: 6px; width: 400px; }
+    #status, #connectedAccount { margin-top: 10px; font-family: monospace; }
+  </style>
 </head>
 <body>
-  <h1>Hardhat Local Node Test</h1>
-  
-  <button id="connectWallet">Connect Wallet</button>
-  <p id="connectedAccount"></p>
+  <h1>Hardhat + MetaMask Test</h1>
 
-  <button id="listAccounts">List Accounts (Hardhat Node)</button>
+  <!-- Wallet Connect -->
+  <button id="connectWallet">Connect Wallet</button>
+  <span id="connectedAccount"></span>
+
+  <h2>List Hardhat Accounts</h2>
+  <button id="listAccounts">List Accounts</button>
   <ul id="accountsList"></ul>
 
-  <h2>Send ETH</h2>
-  <input id="from" placeholder="From Account" style="width:400px" />
-  <input id="to" placeholder="To Account" style="width:400px" />
+  <h2>Send ETH (via Hardhat RPC)</h2>
+  <input id="from" placeholder="From Account" />
+  <input id="to" placeholder="To Account" />
   <input id="amount" placeholder="Amount in ETH" />
   <button id="sendTx">Send Transaction</button>
 
@@ -24,23 +36,35 @@
   <script type="module">
     import { ethers } from "https://cdn.jsdelivr.net/npm/ethers@6.9.1/dist/ethers.esm.min.js";
 
-    // 1️⃣ Local Hardhat provider (backend)
-    const provider = new ethers.JsonRpcProvider('http://127.0.0.1:8545');
+    // Local Hardhat provider (backend)
+    const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
 
     // UI elements
-    const connectBtn = document.getElementById('connectWallet');
-    const connectedAccount = document.getElementById('connectedAccount');
-    const listBtn = document.getElementById('listAccounts');
-    const accountsList = document.getElementById('accountsList');
-    const status = document.getElementById('status');
+    const connectBtn = document.getElementById("connectWallet");
+    const connectedAccount = document.getElementById("connectedAccount");
+    const listBtn = document.getElementById("listAccounts");
+    const accountsList = document.getElementById("accountsList");
+    const status = document.getElementById("status");
 
-    // 2️⃣ MetaMask Connection
+    let userAddress = null;
+
+    // 1️⃣ Connect MetaMask and trigger popup
     connectBtn.onclick = async () => {
       if (window.ethereum) {
         try {
-          const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-          connectedAccount.textContent = `Connected: ${accounts[0]}`;
-          console.log("MetaMask account:", accounts[0]);
+          const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+          userAddress = accounts[0];
+          connectedAccount.textContent = `Connected: ${userAddress}`;
+          console.log("MetaMask connected:", userAddress);
+
+          // Optional: sign a message for authentication
+          const message = "Sign this message to authenticate with Aarovia";
+          const signature = await window.ethereum.request({
+            method: "personal_sign",
+            params: [message, userAddress],
+          });
+          console.log("Signature:", signature);
+
         } catch (err) {
           console.error(err);
           connectedAccount.textContent = "Connection rejected.";
@@ -50,40 +74,39 @@
       }
     };
 
-    // 3️⃣ List unlocked Hardhat accounts (via RPC)
+    // 2️⃣ List Hardhat unlocked accounts
     listBtn.onclick = async () => {
-      accountsList.innerHTML = '';
+      accountsList.innerHTML = "";
       const accounts = await provider.listAccounts();
       accounts.forEach(acc => {
-        const li = document.createElement('li');
+        const li = document.createElement("li");
         li.textContent = acc;
         accountsList.appendChild(li);
       });
     };
 
-    // 4️⃣ Send transaction (from unlocked Hardhat accounts)
-    document.getElementById('sendTx').onclick = async () => {
-      const from = document.getElementById('from').value.trim();
-      const to = document.getElementById('to').value.trim();
-      const amount = document.getElementById('amount').value.trim();
+    // 3️⃣ Send ETH via Hardhat unlocked accounts
+    document.getElementById("sendTx").onclick = async () => {
+      const from = document.getElementById("from").value.trim();
+      const to = document.getElementById("to").value.trim();
+      const amount = document.getElementById("amount").value.trim();
 
       if (!from || !to || !amount) {
-        status.textContent = 'Fill all fields';
+        status.textContent = "⚠️ Fill all fields";
         return;
       }
 
       try {
-        const signer = provider.getSigner(from); // Hardhat accounts
+        const signer = provider.getSigner(from);
         const tx = await signer.sendTransaction({
           to,
-          value: ethers.parseEther(amount)
+          value: ethers.parseEther(amount),
         });
-
-        status.textContent = `Transaction sent! Hash: ${tx.hash}`;
+        status.textContent = `✅ Transaction sent! Hash: ${tx.hash}`;
         console.log(tx);
       } catch (err) {
         console.error(err);
-        status.textContent = 'Error: ' + err.message;
+        status.textContent = "❌ Error: " + err.message;
       }
     };
   </script>

@@ -54,7 +54,7 @@
           try {
             statusDiv.innerHTML = '🔄 Requesting account access...';
             
-            // 🔹 Ask MetaMask to connect
+
             const accounts = await window.ethereum.request({
               method: "eth_requestAccounts",
             });
@@ -86,7 +86,6 @@
 
             statusDiv.innerHTML = '✅ Successfully connected and signed!';
 
-            // 🔹 Now you can use these for API login
             const loginData = {
               address: walletAddress,
               signature: signature,
@@ -94,7 +93,6 @@
             };
             console.log("Login Data for API:", loginData);
 
-            // 🔹 Display results on page
             resultsDiv.innerHTML = `
               <h3>✅ Connected Successfully!</h3>
               <p><strong>Address:</strong> <code>${walletAddress}</code></p>
@@ -107,15 +105,14 @@
               <button onclick="testAPI()" style="background: #2196F3;">🔬 Test API Login</button>
             `;
 
-            // Store login data globally for API test
             window.loginData = loginData;
 
           } catch (err) {
             console.error("Error:", err);
-            statusDiv.innerHTML = '❌ Error: ' + err.message;
+            statusDiv.innerHTML = ' Error: ' + err.message;
             resultsDiv.innerHTML = `
               <div style="color: red;">
-                <h3>❌ Connection Failed</h3>
+                <h3> Connection Failed</h3>
                 <p><strong>Error:</strong> ${err.message}</p>
                 <p><strong>Troubleshooting:</strong></p>
                 <ul>
@@ -127,10 +124,10 @@
             `;
           }
         } else {
-          statusDiv.innerHTML = '❌ MetaMask not detected';
+          statusDiv.innerHTML = ' MetaMask not detected';
           resultsDiv.innerHTML = `
             <div style="color: red;">
-              <h3>❌ MetaMask Not Found</h3>
+              <h3> MetaMask Not Found</h3>
               <p>Please install MetaMask browser extension:</p>
               <a href="https://metamask.io/download/" target="_blank">Download MetaMask</a>
             </div>
@@ -138,7 +135,6 @@
         }
       }
 
-      // Test API function
       async function testAPI() {
         if (!window.loginData) {
           alert('Please connect wallet first!');
@@ -161,7 +157,7 @@
           console.log("API Response:", result);
 
           if (response.ok) {
-            statusDiv.innerHTML = '✅ API login successful!';
+            statusDiv.innerHTML = ' API login successful!';
             document.getElementById('results').innerHTML += `
               <div style="background: #e8f5e8; padding: 10px; margin-top: 10px; border-radius: 5px;">
                 <h4>🎉 API Login Success!</h4>
@@ -172,10 +168,10 @@
             throw new Error(result.message || 'API login failed');
           }
         } catch (err) {
-          statusDiv.innerHTML = '❌ API test failed: ' + err.message;
+          statusDiv.innerHTML = ' API test failed: ' + err.message;
           document.getElementById('results').innerHTML += `
             <div style="background: #ffe8e8; padding: 10px; margin-top: 10px; border-radius: 5px;">
-              <h4>❌ API Error</h4>
+              <h4> API Error</h4>
               <p>${err.message}</p>
               <p><small>Make sure your API server is running on http://localhost:3002</small></p>
             </div>
@@ -183,7 +179,6 @@
         }
       }
 
-      // Wait for DOM to load
       document.addEventListener('DOMContentLoaded', function() {
         document.getElementById("connectButton").addEventListener("click", connectWallet);
       });

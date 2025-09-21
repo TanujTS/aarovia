@@ -1,0 +1,32 @@
+{
+  "name": "aarovia",
+  "version": "1.0.0",
+  "description": "Decentralized Medical Records Platform",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "turbo build",
+    "dev": "turbo dev",
+    "lint": "turbo lint",
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "clean": "turbo clean",
+    "type-check": "turbo type-check",
+    "test": "turbo test",
+    "setup": "npm install && npm run build",
+    "db:generate": "turbo db:generate",
+    "db:push": "turbo db:push",
+    "db:migrate": "turbo db:migrate"
+  },
+  "devDependencies": {
+    "@turbo/gen": "^1.10.12",
+    "@types/babel__traverse": "^7.28.0",
+    "@types/node": "^24.5.2",
+    "eslint": "^8.57.0",
+    "prettier": "^3.0.3",
+    "turbo": "^1.10.12",
+    "typescript": "^5.2.2"
+  }
+}

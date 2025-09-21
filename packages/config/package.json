@@ -1,0 +1,11 @@
+{
+  "name": "@aarovia/config",
+  "version": "1.0.0",
+  "description": "Shared configuration for medical records platform",
+  "private": true,
+  "main": "./index.js",
+  "files": [
+    "eslint.js",
+    "tsconfig.json"
+  ]
+}

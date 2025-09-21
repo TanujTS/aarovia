@@ -6,15 +6,22 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
+    "build": "bun run tsc",
+    "dev": "bun run tsc --watch",
     "clean": "rm -rf dist",
-    "type-check": "tsc --noEmit"
+    "type-check": "bun run tsc --noEmit",
+    "compile": "bun run hardhat compile",
+    "test": "bun run hardhat test",
+    "deploy": "bun run hardhat ignition deploy ./ignition/modules/MedicalRecords.ts",
+    "deploy:mumbai": "bun run hardhat ignition deploy ./ignition/modules/MedicalRecords.ts --network polygonMumbai",
+    "deploy:polygon": "bun run hardhat ignition deploy ./ignition/modules/MedicalRecords.ts --network polygon"
   },
   "dependencies": {
     "@aarovia/types": "file:../types",
     "@nomicfoundation/edr": "^0.12.0-next.5",
     "@nomicfoundation/edr-win32-x64-msvc": "^0.12.0-next.5",
+    "@openzeppelin/contracts": "^4.9.6",
+    "openzeppelin": "^1.0.0",
     "viem": "^1.19.9"
   },
   "devDependencies": {

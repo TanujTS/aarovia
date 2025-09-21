@@ -13,6 +13,8 @@
   },
   "dependencies": {
     "@aarovia/types": "file:../types",
+    "@nomicfoundation/edr": "^0.12.0-next.5",
+    "@nomicfoundation/edr-win32-x64-msvc": "^0.12.0-next.5",
     "viem": "^1.19.9"
   },
   "devDependencies": {

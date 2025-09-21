@@ -48,13 +48,20 @@
         const statusDiv = document.getElementById('status');
         const resultsDiv = document.getElementById('results');
         
+        console.log('🔍 Connect wallet clicked!');
         statusDiv.innerHTML = '⏳ Checking for MetaMask...';
         
-        if (typeof window.ethereum !== 'undefined') {
+        // Clear previous results
+        resultsDiv.innerHTML = '';
+        
+        // More comprehensive MetaMask detection
+        if (typeof window.ethereum !== 'undefined' && window.ethereum.isMetaMask) {
+          console.log('✅ MetaMask detected!');
           try {
             statusDiv.innerHTML = '🔄 Requesting account access...';
-            
+            console.log('📝 Requesting eth_requestAccounts...');
 
+            // This should trigger MetaMask popup
             const accounts = await window.ethereum.request({
               method: "eth_requestAccounts",
             });
@@ -124,12 +131,23 @@
             `;
           }
         } else {
-          statusDiv.innerHTML = ' MetaMask not detected';
+          console.log('❌ MetaMask not found or not enabled');
+          console.log('window.ethereum:', typeof window.ethereum);
+          console.log('window.ethereum.isMetaMask:', window.ethereum?.isMetaMask);
+          
+          statusDiv.innerHTML = '❌ MetaMask not detected';
           resultsDiv.innerHTML = `
             <div style="color: red;">
-              <h3> MetaMask Not Found</h3>
-              <p>Please install MetaMask browser extension:</p>
-              <a href="https://metamask.io/download/" target="_blank">Download MetaMask</a>
+              <h3>❌ MetaMask Not Found</h3>
+              <p><strong>Troubleshooting Steps:</strong></p>
+              <ol>
+                <li>Install MetaMask: <a href="https://metamask.io/download/" target="_blank">Download MetaMask</a></li>
+                <li>Make sure MetaMask is enabled in your browser extensions</li>
+                <li>Refresh this page after installing</li>
+                <li>Try a different browser (Chrome/Firefox/Edge)</li>
+                <li>Check browser console for detailed error messages</li>
+              </ol>
+              <p><small>Debug info: ethereum=${typeof window.ethereum}, isMetaMask=${window.ethereum?.isMetaMask}</small></p>
             </div>
           `;
         }
@@ -179,8 +197,29 @@
         }
       }
 
+      // Check MetaMask status on page load
+      function checkMetaMaskStatus() {
+        const statusDiv = document.getElementById('status');
+        
+        if (typeof window.ethereum !== 'undefined') {
+          if (window.ethereum.isMetaMask) {
+            statusDiv.innerHTML = '✅ MetaMask detected! Click "Connect Wallet" to continue.';
+            console.log('✅ MetaMask is available and ready');
+          } else {
+            statusDiv.innerHTML = '⚠️ Ethereum provider detected but not MetaMask';
+            console.log('⚠️ Ethereum provider found but isMetaMask is false');
+          }
+        } else {
+          statusDiv.innerHTML = '❌ MetaMask not found. Please install MetaMask extension.';
+          console.log('❌ No ethereum provider found');
+        }
+      }
+
       document.addEventListener('DOMContentLoaded', function() {
         document.getElementById("connectButton").addEventListener("click", connectWallet);
+        
+        // Check MetaMask status when page loads
+        setTimeout(checkMetaMaskStatus, 1000); // Wait 1 second for MetaMask to load
       });
     </script>
   </body>

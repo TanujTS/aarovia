@@ -7,7 +7,10 @@
 <body>
   <h1>Hardhat Local Node Test</h1>
   
-  <button id="listAccounts">List Accounts</button>
+  <button id="connectWallet">Connect Wallet</button>
+  <p id="connectedAccount"></p>
+
+  <button id="listAccounts">List Accounts (Hardhat Node)</button>
   <ul id="accountsList"></ul>
 
   <h2>Send ETH</h2>
@@ -21,13 +24,33 @@
   <script type="module">
     import { ethers } from "https://cdn.jsdelivr.net/npm/ethers@6.9.1/dist/ethers.esm.min.js";
 
-    // Connect to Hardhat local node
+    // 1️⃣ Local Hardhat provider (backend)
     const provider = new ethers.JsonRpcProvider('http://127.0.0.1:8545');
 
+    // UI elements
+    const connectBtn = document.getElementById('connectWallet');
+    const connectedAccount = document.getElementById('connectedAccount');
     const listBtn = document.getElementById('listAccounts');
     const accountsList = document.getElementById('accountsList');
     const status = document.getElementById('status');
 
+    // 2️⃣ MetaMask Connection
+    connectBtn.onclick = async () => {
+      if (window.ethereum) {
+        try {
+          const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+          connectedAccount.textContent = `Connected: ${accounts[0]}`;
+          console.log("MetaMask account:", accounts[0]);
+        } catch (err) {
+          console.error(err);
+          connectedAccount.textContent = "Connection rejected.";
+        }
+      } else {
+        alert("MetaMask not found. Please install it!");
+      }
+    };
+
+    // 3️⃣ List unlocked Hardhat accounts (via RPC)
     listBtn.onclick = async () => {
       accountsList.innerHTML = '';
       const accounts = await provider.listAccounts();
@@ -38,6 +61,7 @@
       });
     };
 
+    // 4️⃣ Send transaction (from unlocked Hardhat accounts)
     document.getElementById('sendTx').onclick = async () => {
       const from = document.getElementById('from').value.trim();
       const to = document.getElementById('to').value.trim();
@@ -49,9 +73,7 @@
       }
 
       try {
-        // Hardhat accounts are unlocked by default, can use signer
-        const signer = provider.getSigner(from);
-
+        const signer = provider.getSigner(from); // Hardhat accounts
         const tx = await signer.sendTransaction({
           to,
           value: ethers.parseEther(amount)

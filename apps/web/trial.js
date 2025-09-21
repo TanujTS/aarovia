@@ -1,9 +1,20 @@
-import Web3 from 'web3';
-// Connect to local Hardhat node
-const web3 = new Web3('http://127.0.0.1:8545');
-// Example: get accounts
-async function getAccounts() {
-  const accounts = await web3.eth.getAccounts();
-  console.log(accounts);
+import Web3 from "web3";
+
+let web3;
+
+async function connectWallet() {
+  if (window.ethereum) {
+
+    await window.ethereum.request({ method: "eth_requestAccounts" });
+
+    web3 = new Web3(window.ethereum);
+
+    const accounts = await web3.eth.getAccounts();
+    document.body.innerHTML = `<h3>Connected Account:</h3><pre>${accounts[0]}</pre>`;
+    console.log("Connected:", accounts);
+  } else {
+    alert("MetaMask not found. Please install it!");
+  }
 }
-getAccounts();
+
+connectWallet();

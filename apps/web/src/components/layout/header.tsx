@@ -7,7 +7,6 @@ export function Header() {
   const [isConnecting, setIsConnecting] = useState(false)
   const [metaMaskAvailable, setMetaMaskAvailable] = useState(false)
 
-  // Check MetaMask status on component mount
   useEffect(() => {
     checkMetaMaskStatus()
   }, [])
@@ -24,19 +23,18 @@ export function Header() {
     console.log('🔍 Connect wallet clicked!')
     setIsConnecting(true)
 
-    // Check if MetaMask is available
     if (window.ethereum && window.ethereum.isMetaMask) {
-      console.log('✅ MetaMask detected!')
+      console.log('MetaMask detected!')
       try {
         console.log('📝 Requesting eth_requestAccounts...')
 
-        // This should trigger MetaMask popup
+        //extension popup triggered
         const accounts = await window.ethereum.request({
           method: "eth_requestAccounts",
         })
         console.log("Connected:", accounts[0])
 
-        // Get network ID
+        //gets id from extensison
         const networkId = await window.ethereum.request({
           method: 'net_version'
         })
@@ -45,7 +43,6 @@ export function Header() {
         const walletAddr = accounts[0]
         console.log("Wallet Address:", walletAddr)
 
-        // Create message to sign for authentication
         const message = "Sign this message to authenticate with Aarovia Medical Records"
         
         // Request signature from MetaMask
@@ -55,7 +52,6 @@ export function Header() {
         })
         console.log("Signature:", signature)
 
-        // Store wallet address in state
         setWalletAddress(walletAddr)
 
         const loginData = {
@@ -73,7 +69,7 @@ export function Header() {
         alert(`Connection failed: ${err.message}`)
       }
     } else {
-      console.log('❌ MetaMask not found or not enabled')
+      console.log('MetaMask not found or not enabled')
       alert('MetaMask not found! Please install MetaMask extension from https://metamask.io/download/')
     }
     
@@ -118,10 +114,10 @@ export function Header() {
               }`}
             >
               {isConnecting 
-                ? '🔄 Connecting...' 
+                ? 'Connecting...' 
                 : metaMaskAvailable 
                   ? 'Connect Wallet'
-                  : '❌ Install MetaMask'
+                  : 'Install MetaMask'
               }
             </button>
           )}

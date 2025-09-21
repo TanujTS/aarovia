@@ -48,20 +48,19 @@
         const statusDiv = document.getElementById('status');
         const resultsDiv = document.getElementById('results');
         
-        console.log('🔍 Connect wallet clicked!');
-        statusDiv.innerHTML = '⏳ Checking for MetaMask...';
+        console.log(' Connect wallet clicked!');
+        statusDiv.innerHTML = 'Checking for MetaMask...';
         
-        // Clear previous results
+        //clear previous results
         resultsDiv.innerHTML = '';
         
-        // More comprehensive MetaMask detection
         if (typeof window.ethereum !== 'undefined' && window.ethereum.isMetaMask) {
-          console.log('✅ MetaMask detected!');
+          console.log('MetaMask detected!');
           try {
-            statusDiv.innerHTML = '🔄 Requesting account access...';
-            console.log('📝 Requesting eth_requestAccounts...');
+            statusDiv.innerHTML = 'Requesting account access...';
+            console.log('Requesting eth_requestAccounts...');
 
-            // This should trigger MetaMask popup
+
             const accounts = await window.ethereum.request({
               method: "eth_requestAccounts",
             });
@@ -75,23 +74,20 @@
             });
             console.log("Network ID:", networkId);
 
-            // 🔹 Get the actual wallet address
             const walletAddress = accounts[0];
             console.log("Wallet Address:", walletAddress);
 
             statusDiv.innerHTML = '✍️ Please sign the message in MetaMask...';
 
-            // 🔹 Create message to sign (this is what the API expects)
             const message = "Sign this message to authenticate with Aarovia Medical Records";
             
-            // 🔹 Request signature from MetaMask
             const signature = await window.ethereum.request({
               method: "personal_sign",
               params: [message, walletAddress],
             });
             console.log("Signature:", signature);
 
-            statusDiv.innerHTML = '✅ Successfully connected and signed!';
+            statusDiv.innerHTML = 'Successfully connected and signed!';
 
             const loginData = {
               address: walletAddress,
@@ -101,12 +97,12 @@
             console.log("Login Data for API:", loginData);
 
             resultsDiv.innerHTML = `
-              <h3>✅ Connected Successfully!</h3>
+              <h3>Connected Successfully!</h3>
               <p><strong>Address:</strong> <code>${walletAddress}</code></p>
               <p><strong>Network ID:</strong> ${networkId}</p>
               <p><strong>Message:</strong> <em>"${message}"</em></p>
               <p><strong>Signature:</strong> <code>${signature.substring(0, 30)}...${signature.substring(signature.length-10)}</code></p>
-              <h4>📋 Copy this JSON for Postman:</h4>
+              <h4> Copy this JSON for Postman:</h4>
               <textarea readonly onclick="this.select()">${JSON.stringify(loginData, null, 2)}</textarea>
               <br><br>
               <button onclick="testAPI()" style="background: #2196F3;">🔬 Test API Login</button>
@@ -197,7 +193,6 @@
         }
       }
 
-      // Check MetaMask status on page load
       function checkMetaMaskStatus() {
         const statusDiv = document.getElementById('status');
         

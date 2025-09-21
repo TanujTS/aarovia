@@ -17,7 +17,6 @@
 <body>
   <h1>Hardhat + MetaMask Test</h1>
 
-  <!-- Wallet Connect -->
   <button id="connectWallet">Connect Wallet</button>
   <span id="connectedAccount"></span>
 
@@ -36,10 +35,10 @@
   <script type="module">
     import { ethers } from "https://cdn.jsdelivr.net/npm/ethers@6.9.1/dist/ethers.esm.min.js";
 
-    // Local Hardhat provider (backend)
+
     const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
 
-    // UI elements
+
     const connectBtn = document.getElementById("connectWallet");
     const connectedAccount = document.getElementById("connectedAccount");
     const listBtn = document.getElementById("listAccounts");
@@ -48,7 +47,7 @@
 
     let userAddress = null;
 
-    // 1️⃣ Connect MetaMask and trigger popup
+
     connectBtn.onclick = async () => {
       if (window.ethereum) {
         try {
@@ -57,7 +56,7 @@
           connectedAccount.textContent = `Connected: ${userAddress}`;
           console.log("MetaMask connected:", userAddress);
 
-          // Optional: sign a message for authentication
+
           const message = "Sign this message to authenticate with Aarovia";
           const signature = await window.ethereum.request({
             method: "personal_sign",
@@ -74,7 +73,7 @@
       }
     };
 
-    // 2️⃣ List Hardhat unlocked accounts
+    //list unlocked hardhat accounts
     listBtn.onclick = async () => {
       accountsList.innerHTML = "";
       const accounts = await provider.listAccounts();
@@ -85,14 +84,14 @@
       });
     };
 
-    // 3️⃣ Send ETH via Hardhat unlocked accounts
+    //send ETH via Hardhat unlocked accounts
     document.getElementById("sendTx").onclick = async () => {
       const from = document.getElementById("from").value.trim();
       const to = document.getElementById("to").value.trim();
       const amount = document.getElementById("amount").value.trim();
 
       if (!from || !to || !amount) {
-        status.textContent = "⚠️ Fill all fields";
+        status.textContent = " Fill all fields";
         return;
       }
 
@@ -102,11 +101,11 @@
           to,
           value: ethers.parseEther(amount),
         });
-        status.textContent = `✅ Transaction sent! Hash: ${tx.hash}`;
+        status.textContent = ` Transaction sent! Hash: ${tx.hash}`;
         console.log(tx);
       } catch (err) {
         console.error(err);
-        status.textContent = "❌ Error: " + err.message;
+        status.textContent = " Error: " + err.message;
       }
     };
   </script>

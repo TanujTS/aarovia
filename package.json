@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "description": "Decentralized Medical Records Platform",
   "private": true,
-  "packageManager": "bun@1.2.21",
   "workspaces": [
     "apps/*",
     "packages/*"

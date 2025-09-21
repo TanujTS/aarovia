@@ -12,13 +12,23 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "ethers": "^6.8.1",
-    "viem": "^1.19.9",
-    "@aarovia/types": "file:../types"
+    "@aarovia/types": "file:../types",
+    "viem": "^1.19.9"
   },
   "devDependencies": {
-    "@types/node": "^20.10.0",
-    "typescript": "^5.2.2",
-    "@aarovia/config": "file:../config"
-  }
+    "@aarovia/config": "file:../config",
+    "@nomicfoundation/hardhat-ignition": "^3.0.3",
+    "@nomicfoundation/hardhat-toolbox-mocha-ethers": "^3.0.0",
+    "@types/chai": "^4.3.20",
+    "@types/chai-as-promised": "^8.0.2",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^22.18.6",
+    "chai": "^5.3.3",
+    "ethers": "^6.15.0",
+    "forge-std": "github:foundry-rs/forge-std#v1.9.4",
+    "hardhat": "^3.0.6",
+    "mocha": "^11.7.2",
+    "typescript": "~5.8.0"
+  },
+  "type": "module"
 }

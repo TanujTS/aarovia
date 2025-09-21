@@ -28,5 +28,8 @@
     "prettier": "^3.0.3",
     "turbo": "^1.10.12",
     "typescript": "^5.2.2"
+  },
+  "dependencies": {
+    "hardhat": "^3.0.6"
   }
 }

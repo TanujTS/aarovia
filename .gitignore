@@ -2,6 +2,8 @@
 node_modules/
 .pnp
 .pnp.js
+# bun lockfile (commit this)
+# bun.lockb
 
 # testing
 coverage/
@@ -19,7 +21,7 @@ dist/
 *.pem
 
 # debug
-npm-debug.log*
+bun-debug.log*
 yarn-debug.log*
 yarn-error.log*
 

@@ -54,7 +54,7 @@ cd devjams
 
 ```bash
 # Install dependencies
-npm install
+bun install
 
 # Copy environment file
 cp .env.example .env.local
@@ -62,10 +62,10 @@ cp .env.example .env.local
 # Update .env.local with your database URL and API keys
 
 # Build all packages
-npm run build
+bun run build
 
 # Start development servers
-npm run dev
+bun run dev
 ```
 
 ## 🛠️ Tech Stack
@@ -91,19 +91,19 @@ npm run dev
 
 ### Development
 ```bash
-npm run dev          # Start all development servers
-npm run build        # Build all packages and apps
-npm run lint         # Lint all packages
-npm run type-check   # TypeScript type checking
-npm run test         # Run tests across all packages
-npm run clean        # Clean all build artifacts
+bun run dev          # Start all development servers
+bun run build        # Build all packages and apps
+bun run lint         # Lint all packages
+bun run type-check   # TypeScript type checking
+bun run test         # Run tests across all packages
+bun run clean        # Clean all build artifacts
 ```
 
 ### Database Operations
 ```bash
-npm run db:generate  # Generate database migrations
-npm run db:push      # Push schema changes to database
-npm run db:migrate   # Run pending migrations
+bun run db:generate  # Generate database migrations
+bun run db:push      # Push schema changes to database
+bun run db:migrate   # Run pending migrations
 ```
 
 ## 🏥 User Roles & Workflows
@@ -178,7 +178,7 @@ NODE_ENV="development"
 ### Database (Neon/Supabase)
 1. Create PostgreSQL database on Neon or Supabase
 2. Update `DATABASE_URL` in environment variables
-3. Run migrations: `npm run db:push`
+3. Run migrations: `bun run db:push`
 
 ### Smart Contracts (Hardhat)
 ```bash
@@ -209,14 +209,14 @@ npx hardhat deploy --network mainnet
 
 ```bash
 # Run all tests
-npm run test
+bun run test
 
 # Run specific package tests
-npm run test --filter=@medical-records/api
-npm run test --filter=@medical-records/web
+bun run test --filter=@aarovia/api
+bun run test --filter=@aarovia/web
 
 # Run with coverage
-npm run test -- --coverage
+bun run test -- --coverage
 ```
 
 ## 🤝 Contributing

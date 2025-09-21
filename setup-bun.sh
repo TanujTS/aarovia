@@ -1,23 +1,24 @@
 #!/bin/bash
 
-# Decentralized Medical Records Platform Setup Script
+# Aarovia - Decentralized Medical Records Platform
+# Setup script for Bun
 
-echo "🏥 Setting up Decentralized Medical Records Platform..."
+set -e
 
-# Check for Node.js
-if ! command -v node &> /dev/null; then
-    echo "❌ Node.js is not installed. Please install Node.js 18+ first."
+echo "🏥 Aarovia - Decentralized Medical Records Platform Setup"
+echo "=============================================="
+echo ""
+
+# Check if bun is installed
+if ! command -v bun &> /dev/null; then
+    echo "❌ Bun is not installed. Please install Bun first:"
+    echo "   curl -fsSL https://bun.sh/install | bash"
+    echo "   OR"
+    echo "   npm install -g bun"
     exit 1
 fi
 
-# Check Node.js version
-NODE_VERSION=$(node -v | cut -d'v' -f2 | cut -d'.' -f1)
-if [ "$NODE_VERSION" -lt 18 ]; then
-    echo "❌ Node.js version 18+ is required. Current version: $(node -v)"
-    exit 1
-fi
-
-echo "✅ Node.js $(node -v) detected"
+echo "✅ Bun $(bun --version) detected"
 
 # Install dependencies
 echo "📦 Installing dependencies..."
@@ -28,20 +29,35 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# Install workspace dependencies
-echo "📦 Installing workspace dependencies..."
-cd apps/api && bun install && cd ../..
-cd apps/web && bun install && cd ../..
-cd packages/config && bun install && cd ../..
-cd packages/types && bun install && cd ../..
-cd packages/database && bun install && cd ../..
-cd packages/web3 && bun install && cd ../..
-
 # Create environment file
 if [ ! -f .env.local ]; then
     echo "⚙️ Creating environment file..."
-    cp .env.example .env.local
-    echo "✅ Created .env.local - Please update with your actual values"
+    if [ -f .env.example ]; then
+        cp .env.example .env.local
+        echo "✅ Created .env.local - Please update with your actual values"
+    else
+        echo "⚠️  .env.example not found, creating basic .env.local"
+        cat > .env.local << EOF
+# Database
+DATABASE_URL="postgresql://username:password@localhost:5432/aarovia"
+
+# API Configuration
+API_PORT=3001
+JWT_SECRET="your-jwt-secret-key"
+
+# Next.js
+NEXT_PUBLIC_API_URL="http://localhost:3001"
+
+# Blockchain
+NEXT_PUBLIC_CHAIN_ID="1"
+NEXT_PUBLIC_RPC_URL="https://mainnet.infura.io/v3/your-key"
+
+# IPFS
+IPFS_GATEWAY_URL="https://gateway.pinata.cloud"
+PINATA_API_KEY="your-pinata-api-key"
+PINATA_SECRET_API_KEY="your-pinata-secret-key"
+EOF
+    fi
 else
     echo "⚙️ Environment file already exists"
 fi

@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Decentralized Medical Records Platform",
   "private": true,
+  "packageManager": "bun@1.2.21",
   "workspaces": [
     "apps/*",
     "packages/*"
@@ -15,7 +16,7 @@
     "clean": "turbo clean",
     "type-check": "turbo type-check",
     "test": "turbo test",
-    "setup": "npm install && npm run build",
+    "setup": "bun install && bun run build",
     "db:generate": "turbo db:generate",
     "db:push": "turbo db:push",
     "db:migrate": "turbo db:migrate"

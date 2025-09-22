@@ -36,7 +36,7 @@
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts"
-  ],
+, "access_manage.js"  ],
   "exclude": [
     "node_modules"
   ]

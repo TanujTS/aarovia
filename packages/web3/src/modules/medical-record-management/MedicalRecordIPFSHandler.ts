@@ -5,20 +5,16 @@
 
 import { PinataSDK } from 'pinata-web3';
 import crypto from 'crypto';
-import { 
-  MedicalRecordUploadRequest,
-  MedicalRecordMetadata,
+import { gzipSync, gunzipSync } from 'zlib';
+import {
   MedicalRecordIPFSData,
   MedicalFileUpload,
   MedicalFileType,
-  MedicalRecordType,
   IPFSUploadResult,
   IPFSRetrievalResult,
   FileValidationResult,
   EncryptionResult,
-  DecryptionResult,
   CompressionResult,
-  ChecksumResult,
   IPFSUploadOptions,
   IPFSRetrievalOptions,
   FileProcessingOptions
@@ -67,7 +63,11 @@ export class MedicalRecordIPFSHandler {
       const invalidFiles = validationResults.filter(result => !result.isValid);
       
       if (invalidFiles.length > 0) {
-        throw new Error(`File validation failed: ${invalidFiles.map(f => f.fileName + ': ' + f.error).join(', ')}`);
+        throw new Error(
+          `File validation failed: ${invalidFiles
+            .map(f => f.fileName + ': ' + (f.errors?.join('; ') || 'unknown error'))
+            .join(', ')}`
+        );
       }
 
       // Process files (encrypt, compress, checksum)
@@ -82,17 +82,18 @@ export class MedicalRecordIPFSHandler {
       const fileDirectory = this.createFileDirectory(processedFiles);
 
       // Upload directory to IPFS
+      const extraKeyValues = (options.metadata as any)?.keyValues || (options.metadata as any)?.keyvalues || {};
       const uploadResponse = await this.pinata.upload.json(fileDirectory, {
         metadata: {
           name: options.metadata?.name || `medical-records-${Date.now()}`,
           keyValues: {
             type: 'medical-record-content',
             uploadedAt: new Date().toISOString(),
-            fileCount: files.length.toString(),
-            totalSize: this.calculateTotalSize(files).toString(),
+            fileCount: String(files.length),
+            totalSize: String(this.calculateTotalSize(files)),
             encrypted: options.processingOptions?.encrypt ? 'true' : 'false',
             compressed: options.processingOptions?.compress ? 'true' : 'false',
-            ...options.metadata?.keyvalues
+            ...Object.fromEntries(Object.entries(extraKeyValues).map(([k, v]) => [k, String(v)]))
           }
         }
       });
@@ -148,42 +149,60 @@ export class MedicalRecordIPFSHandler {
       const startTime = Date.now();
       console.log(`📋 Uploading medical record metadata to IPFS...`);
 
-      // The input metadata is already MedicalRecordIPFSData, so we just need to add upload info
-      const ipfsMetadata = {
+      // Prepare metadata clone so we can mutate safely
+      const ipfsMetadata: MedicalRecordIPFSData & {
+        uploadInfo?: {
+          uploadedAt: string;
+          uploaderAddress: string;
+          encryption: boolean;
+          compression: boolean;
+          checksum?: string;
+        };
+      } = {
         ...metadata,
         uploadInfo: {
           uploadedAt: new Date().toISOString(),
           uploaderAddress: options.uploaderAddress || '',
-          encryption: options.processingOptions?.encrypt || false,
-          compression: options.processingOptions?.compress || false,
-          checksum: this.calculateIPFSMetadataChecksum(metadata)
+          encryption: !!options.processingOptions?.encrypt,
+          compression: !!options.processingOptions?.compress
         }
       };
 
       // Encrypt metadata if requested
       if (options.processingOptions?.encrypt) {
-        if (ipfsMetadata.clinicalData) {
-          ipfsMetadata.clinicalData = await this.encryptData(ipfsMetadata.clinicalData);
+        if ((ipfsMetadata as any).clinicalData) {
+          (ipfsMetadata as any).clinicalData = await this.encryptData((ipfsMetadata as any).clinicalData);
         }
-        if (ipfsMetadata.recordDescription) {
-          ipfsMetadata.recordDescription = await this.encryptString(ipfsMetadata.recordDescription);
+        if ((ipfsMetadata as any).recordDescription) {
+          (ipfsMetadata as any).recordDescription = await this.encryptString((ipfsMetadata as any).recordDescription);
         }
+        // mark which fields are encrypted
+        (ipfsMetadata as any).encryptedFields = this.getEncryptedFields(ipfsMetadata as any);
+      } else {
+        (ipfsMetadata as any).encryptedFields = [];
+      }
+
+      // Compute checksum on the exact payload to be stored (post-encryption if any)
+      (ipfsMetadata as any).checksum = this.calculateIPFSMetadataChecksum(ipfsMetadata as any);
+      if (ipfsMetadata.uploadInfo) {
+        ipfsMetadata.uploadInfo.checksum = (ipfsMetadata as any).checksum;
       }
 
       // Upload metadata to IPFS
+      const extraKV2 = (options.metadata as any)?.keyValues || (options.metadata as any)?.keyvalues || {};
       const uploadResponse = await this.pinata.upload.json(ipfsMetadata, {
         metadata: {
-          name: options.metadata?.name || `medical-metadata-${metadata.recordId}`,
+          name: options.metadata?.name || `medical-metadata-${(metadata as any).recordId}`,
           keyValues: {
             type: 'medical-record-metadata',
-            recordId: metadata.recordId,
-            patientId: metadata.patientId,
-            providerId: metadata.providerId,
-            recordType: metadata.recordType,
+            recordId: String((metadata as any).recordId ?? ''),
+            patientId: String((metadata as any).patientId ?? ''),
+            providerId: String((metadata as any).providerId ?? ''),
+            recordType: String((metadata as any).recordType ?? ''),
             uploadedAt: new Date().toISOString(),
-            version: ipfsMetadata.version,
+            version: String((ipfsMetadata as any).version ?? ''),
             encrypted: options.processingOptions?.encrypt ? 'true' : 'false',
-            ...options.metadata?.keyvalues
+            ...Object.fromEntries(Object.entries(extraKV2).map(([k, v]) => [k, String(v)]))
           }
         }
       });
@@ -204,7 +223,7 @@ export class MedicalRecordIPFSHandler {
           fileName: 'metadata.json',
           fileType: MedicalFileType.JSON,
           size: JSON.stringify(ipfsMetadata).length,
-          checksum: ipfsMetadata.checksum,
+          checksum: (ipfsMetadata as any).checksum,
           encrypted: options.processingOptions?.encrypt || false,
           compressed: options.processingOptions?.compress || false
         }],
@@ -241,23 +260,32 @@ export class MedicalRecordIPFSHandler {
 
       // Fetch data from IPFS
       const response = await this.pinata.gateways.get(cid);
-      const metadata = response.data as MedicalRecordIPFSData;
+      const rawData = response.data as unknown;
+      let metadata: MedicalRecordIPFSData;
+      if (typeof rawData === 'string') {
+        metadata = JSON.parse(rawData) as MedicalRecordIPFSData;
+      } else if (rawData && typeof rawData === 'object' && typeof (rawData as any).text === 'function') {
+        const text = await (rawData as any).text();
+        metadata = JSON.parse(text) as MedicalRecordIPFSData;
+      } else {
+        metadata = rawData as MedicalRecordIPFSData;
+      }
 
-      // Verify checksum if available
-      if (metadata.checksum && options.verifyChecksum !== false) {
-        const calculatedChecksum = this.calculateMetadataChecksum(metadata);
-        if (calculatedChecksum !== metadata.checksum) {
+      // Verify checksum if available (on the data as fetched)
+      if ((metadata as any).checksum && options.verifyChecksum !== false) {
+        const calculatedChecksum = this.calculateIPFSMetadataChecksum(metadata as any);
+        if (calculatedChecksum !== (metadata as any).checksum) {
           throw new Error('Metadata checksum verification failed - data may be corrupted');
         }
       }
 
       // Decrypt data if it was encrypted
-      if (metadata.encryptedFields && metadata.encryptedFields.length > 0 && options.decrypt !== false) {
-        if (metadata.encryptedFields.includes('medicalData')) {
-          metadata.medicalData = await this.decryptData(metadata.medicalData);
+      if ((metadata as any).encryptedFields && (metadata as any).encryptedFields.length > 0 && options.decrypt !== false) {
+        if ((metadata as any).encryptedFields.includes('clinicalData') && (metadata as any).clinicalData) {
+          (metadata as any).clinicalData = await this.decryptData((metadata as any).clinicalData);
         }
-        if (metadata.encryptedFields.includes('description')) {
-          metadata.description = await this.decryptString(metadata.description);
+        if ((metadata as any).encryptedFields.includes('recordDescription') && (metadata as any).recordDescription) {
+          (metadata as any).recordDescription = await this.decryptString((metadata as any).recordDescription);
         }
       }
 
@@ -274,8 +302,8 @@ export class MedicalRecordIPFSHandler {
         metadata: {
           fetchedAt: new Date().toISOString(),
           cid,
-          checksum: metadata.checksum,
-          version: metadata.version
+          checksum: (metadata as any).checksum,
+          version: (metadata as any).version
         }
       };
 
@@ -314,8 +342,8 @@ export class MedicalRecordIPFSHandler {
         throw new Error(`File ${fileName} not found in IPFS directory`);
       }
 
-      // Convert base64 back to buffer
-      let fileBuffer = Buffer.from(fileData.content, 'base64');
+  // Convert base64 back to buffer
+  let fileBuffer: any = Buffer.from(fileData.content as any, 'base64');
 
       // Decompress if needed
       if (fileData.compressed && options.decompress !== false) {
@@ -373,38 +401,40 @@ export class MedicalRecordIPFSHandler {
    * Validate medical files before upload
    */
   private async validateFiles(files: MedicalFileUpload[]): Promise<FileValidationResult[]> {
-    const results: FileValidationResult[] = [];
+  const results: FileValidationResult[] = [];
 
     for (const file of files) {
       const result: FileValidationResult = {
         fileName: file.fileName,
         isValid: true,
-        error: null,
+        errors: [],
         warnings: []
-      };
+      } as FileValidationResult;
 
       // Check file size
       if (file.size > this.maxFileSize) {
         result.isValid = false;
-        result.error = `File size ${file.size} exceeds maximum allowed size of ${this.maxFileSize} bytes`;
+        result.errors.push(
+          `File size ${file.size} exceeds maximum allowed size of ${this.maxFileSize} bytes`
+        );
       }
 
       // Check file type
       if (!this.allowedFileTypes.has(file.mimeType)) {
         result.isValid = false;
-        result.error = `File type ${file.mimeType} is not allowed`;
+        result.errors.push(`File type ${file.mimeType} is not allowed`);
       }
 
       // Check file name
       if (!file.fileName || file.fileName.trim().length === 0) {
         result.isValid = false;
-        result.error = 'File name cannot be empty';
+        result.errors.push('File name cannot be empty');
       }
 
       // Check for potentially dangerous file names
       if (file.fileName.includes('..') || file.fileName.includes('/') || file.fileName.includes('\\')) {
         result.isValid = false;
-        result.error = 'File name contains invalid characters';
+        result.errors.push('File name contains invalid characters');
       }
 
       // Add warnings for large files
@@ -488,16 +518,19 @@ export class MedicalRecordIPFSHandler {
   /**
    * Calculate metadata checksum
    */
-  private calculateMetadataChecksum(metadata: MedicalRecordMetadata): string {
-    const metadataString = JSON.stringify({
-      recordId: metadata.recordId,
-      patientId: metadata.patientId,
-      providerId: metadata.providerId,
-      recordType: metadata.recordType,
-      title: metadata.title,
-      description: metadata.description,
-      medicalData: metadata.medicalData
-    });
+  private calculateIPFSMetadataChecksum(metadata: MedicalRecordIPFSData): string {
+    // Only include stable, meaningful fields in checksum calculation
+    const checksumPayload = {
+      recordId: (metadata as any).recordId,
+      patientId: (metadata as any).patientId,
+      providerId: (metadata as any).providerId,
+      recordType: (metadata as any).recordType,
+      version: (metadata as any).version,
+      clinicalData: (metadata as any).clinicalData,
+      recordDescription: (metadata as any).recordDescription,
+      encryptedFields: (metadata as any).encryptedFields || []
+    };
+    const metadataString = JSON.stringify(checksumPayload);
     return crypto.createHash('sha256').update(metadataString).digest('hex');
   }
 
@@ -511,11 +544,16 @@ export class MedicalRecordIPFSHandler {
   /**
    * Encrypt file buffer
    */
+  private deriveKey(): Buffer {
+    // Derive a 32-byte key from the provided encryption key string
+    return crypto.createHash('sha256').update(this.encryptionKey).digest();
+  }
+
   private async encryptFile(buffer: Buffer): Promise<EncryptionResult> {
     const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipher('aes-256-cbc', this.encryptionKey);
-    cipher.setAutoPadding(true);
-    
+    const key = this.deriveKey();
+    const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+
     const encrypted = Buffer.concat([cipher.update(buffer), cipher.final()]);
     const encryptedData = Buffer.concat([iv, encrypted]);
 
@@ -532,10 +570,9 @@ export class MedicalRecordIPFSHandler {
   private async decryptFile(encryptedBuffer: Buffer): Promise<Buffer> {
     const iv = encryptedBuffer.slice(0, 16);
     const encrypted = encryptedBuffer.slice(16);
-    
-    const decipher = crypto.createDecipher('aes-256-cbc', this.encryptionKey);
+    const key = this.deriveKey();
+    const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
     const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
-
     return decrypted;
   }
 
@@ -543,9 +580,7 @@ export class MedicalRecordIPFSHandler {
    * Compress file buffer
    */
   private async compressFile(buffer: Buffer): Promise<CompressionResult> {
-    const zlib = require('zlib');
-    const compressed = zlib.gzipSync(buffer);
-
+    const compressed = gzipSync(buffer);
     return {
       compressedData: compressed,
       originalSize: buffer.length,
@@ -559,8 +594,7 @@ export class MedicalRecordIPFSHandler {
    * Decompress file buffer
    */
   private async decompressFile(compressedBuffer: Buffer): Promise<Buffer> {
-    const zlib = require('zlib');
-    return zlib.gunzipSync(compressedBuffer);
+    return gunzipSync(compressedBuffer);
   }
 
   /**
@@ -603,15 +637,15 @@ export class MedicalRecordIPFSHandler {
   /**
    * Get list of encrypted fields
    */
-  private getEncryptedFields(metadata: MedicalRecordMetadata): string[] {
+  private getEncryptedFields(metadata: MedicalRecordIPFSData): string[] {
     const encryptedFields: string[] = [];
     
-    if (metadata.medicalData && Object.keys(metadata.medicalData).length > 0) {
-      encryptedFields.push('medicalData');
+    if (metadata.clinicalData && Object.keys(metadata.clinicalData).length > 0) {
+      encryptedFields.push('clinicalData');
     }
     
-    if (metadata.description && metadata.description.trim().length > 0) {
-      encryptedFields.push('description');
+    if (metadata.recordDescription && metadata.recordDescription.trim().length > 0) {
+      encryptedFields.push('recordDescription');
     }
 
     return encryptedFields;

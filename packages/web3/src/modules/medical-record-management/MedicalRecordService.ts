@@ -74,14 +74,22 @@ export class MedicalRecordService {
       let contentCID = '';
       
       if (request.files && request.files.length > 0) {
-        const fileUploads: MedicalFileUpload[] = request.files.map(file => ({
-          fileName: file.fileName,
-          fileType: file.fileType,
-          mimeType: file.file instanceof File ? file.file.type : this.getMimeTypeFromFileType(file.fileType),
-          content: file.file instanceof File ? Buffer.from(await file.file.arrayBuffer()) : file.file,
-          size: file.file instanceof File ? file.file.size : file.file.length,
-          description: file.description
-        }));
+        const fileUploads: MedicalFileUpload[] = await Promise.all(
+          request.files.map(async (file) => ({
+            fileName: file.fileName,
+            fileType: file.fileType,
+            mimeType: (file.file instanceof File)
+              ? file.file.type
+              : this.getMimeTypeFromFileType(file.fileType),
+            content: (file.file instanceof File)
+              ? Buffer.from(await file.file.arrayBuffer())
+              : (file.file as Buffer),
+            size: (file.file instanceof File)
+              ? file.file.size
+              : (file.file as Buffer).length,
+            description: file.description
+          }))
+        );
 
         const contentUploadResult = await this.ipfsHandler.uploadRecordContentToIPFS(fileUploads, {
           processingOptions: {
@@ -89,7 +97,7 @@ export class MedicalRecordService {
             compress: this.config.compressionEnabled,
             validateChecksum: true
           },
-          uploaderAddress: await this.contract.getSignerAddress(),
+          uploaderAddress: (await this.contract.getSignerAddress()) || '',
           metadata: {
             name: `medical-record-${recordId}`,
             keyvalues: {
@@ -161,7 +169,7 @@ export class MedicalRecordService {
           encrypt: this.shouldEncryptRecord(request),
           compress: this.config.compressionEnabled
         },
-        uploaderAddress: await this.contract.getSignerAddress(),
+        uploaderAddress: (await this.contract.getSignerAddress()) || '',
         metadata: {
           name: `medical-metadata-${recordId}`,
           keyvalues: {
@@ -193,13 +201,11 @@ export class MedicalRecordService {
         isSensitive: request.isSensitive
       });
 
-      if (!uploadResult.success) {
-        throw new MedicalRecordManagementException(
-          MedicalRecordManagementError.CONTRACT_ERROR,
-          `Failed to upload record to blockchain: ${uploadResult.error}`,
-          { uploadResult }
-        );
-      }
+      // Wait for receipt to extract gas and block info
+      const receipt = await uploadResult.transaction.wait();
+      const transactionHash = uploadResult.transaction.hash;
+      const gasUsed = receipt?.gasUsed ? Number(receipt.gasUsed) : 0;
+      const blockNumber = receipt?.blockNumber ?? 0;
 
       const endTime = Date.now();
       const duration = endTime - startTime;
@@ -207,7 +213,7 @@ export class MedicalRecordService {
       console.log(`✅ Medical record uploaded successfully in ${duration}ms`);
       console.log(`📋 Record ID: ${recordId}`);
       console.log(`📎 Record CID: ${recordCID}`);
-      console.log(`🧾 Transaction: ${uploadResult.transactionHash}`);
+  console.log(`🧾 Transaction: ${transactionHash}`);
 
       return {
         success: true,
@@ -216,11 +222,11 @@ export class MedicalRecordService {
         providerId: request.providerId,
         recordCID,
         fileCIDs,
-        transactionHash: uploadResult.transactionHash,
-        gasUsed: uploadResult.gasUsed,
-        blockNumber: uploadResult.blockNumber,
+        transactionHash,
+        gasUsed,
+        blockNumber,
         uploadTimestamp: Math.floor(Date.now() / 1000),
-        totalSize: metadataUploadResult.size + (contentUploadResult?.size || 0),
+        totalSize: metadataUploadResult.size + (contentCID ? metadataUploadResult.size /* placeholder if needed */ : 0),
         fileCount: request.files?.length || 0,
         message: 'Medical record uploaded successfully'
       };
@@ -259,16 +265,7 @@ export class MedicalRecordService {
       console.log(`📥 Retrieving medical record: ${recordId}`);
 
       // Step 1: Get metadata from blockchain
-      const metadataResult = await this.contract.getRecordMetadata(recordId);
-      if (!metadataResult.success) {
-        throw new MedicalRecordManagementException(
-          MedicalRecordManagementError.RECORD_NOT_FOUND,
-          `Failed to retrieve record metadata: ${metadataResult.error}`,
-          { metadataResult }
-        );
-      }
-
-      const recordMetadata = metadataResult.metadata;
+      const recordMetadata = await this.contract.getRecordMetadata(recordId);
 
       // Step 2: Fetch IPFS data
       const ipfsResult = await this.ipfsHandler.fetchRecordMetadataFromIPFS(recordMetadata.recordCID, {
@@ -319,26 +316,16 @@ export class MedicalRecordService {
     try {
       console.log(`📋 Retrieving records for patient: ${patientId}`);
 
-      const recordIdsResult = await this.contract.getPatientRecordIds(patientId);
-      if (!recordIdsResult.success) {
-        throw new MedicalRecordManagementException(
-          MedicalRecordManagementError.CONTRACT_ERROR,
-          `Failed to retrieve patient record IDs: ${recordIdsResult.error}`,
-          { recordIdsResult }
-        );
-      }
-
-      const recordIds = recordIdsResult.recordIds;
+      const recordIds = await this.contract.getPatientRecordIds(patientId);
       const records: MedicalRecordMetadata[] = [];
 
       // Fetch metadata for each record
       for (const recordId of recordIds) {
         try {
-          const metadataResult = await this.contract.getRecordMetadata(recordId);
-          if (metadataResult.success && metadataResult.metadata) {
-            // Apply filters
-            if (this.matchesSearchParams(metadataResult.metadata, params)) {
-              records.push(metadataResult.metadata);
+          const metadata = await this.contract.getRecordMetadata(recordId);
+          if (metadata) {
+            if (this.matchesSearchParams(metadata, params)) {
+              records.push(metadata);
             }
           }
         } catch (error) {
@@ -415,7 +402,7 @@ export class MedicalRecordService {
         metadata: {
           ...currentRecord.recordData.metadata,
           tags: request.tags || currentRecord.recordData.metadata.tags,
-          lastModifiedBy: await this.contract.getSignerAddress() || 'unknown'
+          lastModifiedBy: (await this.contract.getSignerAddress()) || 'unknown'
         }
       };
 
@@ -423,7 +410,7 @@ export class MedicalRecordService {
       updatedData.securityInfo.auditTrail.push({
         action: 'RECORD_UPDATED',
         timestamp: new Date().toISOString(),
-        userId: await this.contract.getSignerAddress() || 'unknown',
+        userId: (await this.contract.getSignerAddress()) || 'unknown',
         ipAddress: 'unknown'
       });
 
@@ -433,7 +420,7 @@ export class MedicalRecordService {
           encrypt: currentRecord.recordMetadata.isSensitive,
           compress: this.config.compressionEnabled
         },
-        uploaderAddress: await this.contract.getSignerAddress(),
+        uploaderAddress: (await this.contract.getSignerAddress()) || '',
         metadata: {
           name: `medical-metadata-${request.recordId}-updated`,
           keyvalues: {
@@ -458,13 +445,10 @@ export class MedicalRecordService {
         newRecordCID: metadataUploadResult.cid
       });
 
-      if (!updateResult.success) {
-        throw new MedicalRecordManagementException(
-          MedicalRecordManagementError.CONTRACT_ERROR,
-          `Failed to update record CID on blockchain: ${updateResult.error}`,
-          { updateResult }
-        );
-      }
+      const updateReceipt = await updateResult.transaction.wait();
+      const updateTxHash = updateResult.transaction.hash;
+      const updateGasUsed = updateReceipt?.gasUsed ? Number(updateReceipt.gasUsed) : 0;
+      const updateBlockNumber = updateReceipt?.blockNumber ?? 0;
 
       console.log(`✅ Medical record updated successfully`);
       console.log(`📋 Record ID: ${request.recordId}`);
@@ -477,9 +461,9 @@ export class MedicalRecordService {
         providerId: currentRecord.recordMetadata.providerId,
         recordCID: metadataUploadResult.cid,
         fileCIDs: [metadataUploadResult.cid],
-        transactionHash: updateResult.transactionHash,
-        gasUsed: updateResult.gasUsed,
-        blockNumber: updateResult.blockNumber,
+        transactionHash: updateTxHash,
+        gasUsed: updateGasUsed,
+        blockNumber: updateBlockNumber,
         uploadTimestamp: Math.floor(Date.now() / 1000),
         totalSize: metadataUploadResult.size,
         fileCount: currentRecord.recordData.attachments.length,
@@ -602,7 +586,7 @@ export class MedicalRecordService {
       }
 
       // Estimate gas for contract call
-      const gasEstimate = await this.contract.estimateUploadGas({
+      const gasEstimate = await this.contract.estimateGasForUpload({
         patientId: request.patientId,
         providerId: request.providerId,
         recordType: request.recordType,
@@ -614,21 +598,17 @@ export class MedicalRecordService {
       return gasEstimate;
 
     } catch (error) {
-      console.error('❌ Error estimating upload gas:', error);
+      console.error('Error estimating upload gas:', error);
       throw error;
     }
   }
 
-  /**
-   * Get service configuration
-   */
+
   getConfig(): MedicalRecordManagementConfig {
     return { ...this.config };
   }
 
-  /**
-   * Update service configuration
-   */
+
   updateConfig(newConfig: Partial<MedicalRecordManagementConfig>): void {
     this.config = { ...this.config, ...newConfig };
   }

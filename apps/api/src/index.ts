@@ -8,6 +8,7 @@ import { patientRoutes } from './routes/patients';
 import { recordRoutes } from './routes/records';
 import { providerRoutes } from './routes/providers';
 import { web3Routes } from './routes/web3';
+import indexerRoutes from './routes/indexer-simple';
 import { errorHandler } from './middleware/errorHandler';
 import { rateLimitMiddleware } from './middleware/rateLimiter';
 
@@ -41,17 +42,17 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// Request parsing
+
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Logging
+
 app.use(morgan('combined'));
 
-// Rate limiting
+
 app.use(rateLimitMiddleware);
 
-// Health check
+
 app.get('/health', (req, res) => {
   res.json({ 
     status: 'ok', 
@@ -60,12 +61,13 @@ app.get('/health', (req, res) => {
   });
 });
 
-// API routes
+
 app.use('/api/auth', authRoutes);
 app.use('/api/patients', patientRoutes);
 app.use('/api/records', recordRoutes);
 app.use('/api/providers', providerRoutes);
 app.use('/api/web3', web3Routes);
+app.use('/api/indexer', indexerRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

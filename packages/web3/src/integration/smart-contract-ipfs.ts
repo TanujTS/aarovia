@@ -1,68 +1,47 @@
-/**
- * Smart Contract Integration for IPFS/Filecoin Storage
- * Updated to work with your actual Aarovia smart contracts and comprehensive medical data structures
- */
-
 import { ethers } from 'ethers';
-import {
-  IPFSClient,
-  createPinataClient,
-  createInfuraClient,
-  FileType
-} from '../ipfs.js';
+import { IPFSClient, FileType } from '../ipfs.js';
 import {
   PatientProfile,
-  ProviderProfile,
   EncounterRecord,
   LabResultRecord,
   ImagingReportRecord,
-  PrescriptionRecord,
   MentalHealthRecord,
-  SurgeryRecord,
-  GeneticTestRecord,
-  RawMedicalFile,
-  InstitutionProfile
+  GeneticTestRecord
 } from '../types/medical-data-types.js';
-import { getPrimaryStorageConfig, shouldEncryptFile } from '../config/ipfs-config.js';
-
-// Smart contract record types (matching your Solidity enum)
-export enum ContractRecordType {
-  None = 0,
-  Encounter = 1,
-  LabResult = 2,
-  ImagingReport = 3,
-  Prescription = 4,
-  Vaccination = 5,
-  Procedure = 6,
-  Consultation = 7
-}
-
-// Provider types (matching your Solidity enum)
-export enum ContractProviderType {
-  None = 0,
-  Doctor = 1,
-  Clinic = 2,
-  Lab = 3,
-  Hospital = 4,
-  Pharmacy = 5,
-  Specialist = 6
-}
 
 /**
- * Medical Records Contract Integration
- * Updated to work with your actual MedicalRecords.sol contract
+ * Integration between smart contracts and IPFS for medical records
+ * This class provides methods to store medical records on IPFS and reference them in smart contracts
  */
 export class MedicalRecordsIPFSIntegration {
   private ipfsClient: IPFSClient;
   private contract: ethers.Contract;
 
-  constructor(ipfsClient: IPFSClient, contract: ethers.Contract) {
-    this.ipfsClient = ipfsClient;
+  constructor(
+    ipfsConfig: {
+      pinataApiKey?: string;
+      pinataSecretApiKey?: string;
+      pinataJWT?: string;
+      web3StorageToken?: string;
+      infuraProjectId?: string;
+      infuraProjectSecret?: string;
+    },
+    contract: ethers.Contract
+  ) {
+    // Convert to StorageConfig format
+    const storageConfig = {
+      provider: 'pinata' as any, // Use Pinata as default
+      apiKey: ipfsConfig.pinataApiKey,
+      secretKey: ipfsConfig.pinataSecretApiKey,
+      projectId: ipfsConfig.infuraProjectId
+    };
+    
+    this.ipfsClient = new IPFSClient(storageConfig);
     this.contract = contract;
   }
 
   /**
-   * Create an encounter record with IPFS storage and blockchain registration
+   * Create and store an encounter record on IPFS and blockchain
    */
   async createEncounterRecord(
     recordId: string,
@@ -71,47 +50,51 @@ export class MedicalRecordsIPFSIntegration {
     providerId: string,
     providerWallet: string,
     encounterData: EncounterRecord,
-    title: string,
     attachments: File[] = [],
     encryptionKey?: string
   ): Promise<{
-    recordCID: string;
+    metadataCID: string;
     attachmentCIDs: string[];
     transactionHash: string;
   }> {
     try {
-      // 1. Upload attachment files to IPFS
+      // 1. Upload attachments to IPFS
       const attachmentCIDs: string[] = [];
-      const attachmentMetadata: EncounterRecord['attachments'] = [];
+      const encryptedAttachments: EncounterRecord['attachments'] = [];
 
       for (const file of attachments) {
         const uploadResult = await this.ipfsClient.uploadFile(
           file,
           this.getFileTypeFromFile(file),
-          true, // Encrypt medical attachments
+          true, // Encrypt attachments
           encryptionKey
         );
 
         attachmentCIDs.push(uploadResult.hash);
-        attachmentMetadata?.push({
+        encryptedAttachments?.push({
           attachment_name: file.name,
           file_type: file.type,
           file_CID: uploadResult.hash,
           upload_date: new Date().toISOString()
         });
 
-        // Pin attachment
+        // Pin important files
         await this.ipfsClient.pinContent(uploadResult.hash);
       }
 
-      // 2. Add attachments to encounter record
-      const completeEncounter: EncounterRecord = {
+      // 2. Add attachments to encounter data
+      const completeEncounterData: EncounterRecord = {
         ...encounterData,
-        attachments: attachmentMetadata
+        attachments: encryptedAttachments
       };
 
-      // 3. Upload encounter record to IPFS (encrypted)
-      const recordUpload = await this.ipfsClient.uploadEncounterRecord(completeEncounter, true);
+      // 3. Upload encounter record to IPFS
+      const recordUpload = await this.ipfsClient.uploadMedicalRecord(
+        completeEncounterData,
+        true // Encrypt medical records
+      );
+
+      // Pin the record
       await this.ipfsClient.pinContent(recordUpload.hash);
 
       // 4. Store CID in smart contract
@@ -121,16 +104,17 @@ export class MedicalRecordsIPFSIntegration {
         patientWallet,
         ethers.keccak256(ethers.toUtf8Bytes(providerId)),
         providerWallet,
-        ContractRecordType.Encounter,
-        recordUpload.hash,
-        title,
-        true // Encounters are sensitive
+        0, // Encounter record type
+        recordUpload.hash, // Store IPFS CID in contract
+        encounterData.reason_for_visit || 'General Encounter',
+        true, // Mark as sensitive
+        patientWallet
       );
 
       const receipt = await tx.wait();
 
       return {
-        recordCID: recordUpload.hash,
+        metadataCID: recordUpload.hash,
         attachmentCIDs,
         transactionHash: receipt.hash
       };
@@ -141,7 +125,7 @@ export class MedicalRecordsIPFSIntegration {
   }
 
   /**
-   * Create a lab result record with IPFS storage and blockchain registration
+   * Create and store a lab result record on IPFS and blockchain
    */
   async createLabResultRecord(
     recordId: string,
@@ -150,34 +134,39 @@ export class MedicalRecordsIPFSIntegration {
     providerId: string,
     providerWallet: string,
     labData: LabResultRecord,
-    title: string,
     reportFile?: File,
     encryptionKey?: string
   ): Promise<{
-    recordCID: string;
+    metadataCID: string;
     reportCID?: string;
     transactionHash: string;
   }> {
     try {
       let reportCID: string | undefined;
 
-      // 1. Upload lab report file if provided
+      // 1. Upload report file if provided
       if (reportFile) {
-        const reportUpload = await this.ipfsClient.uploadFile(
+        const uploadResult = await this.ipfsClient.uploadFile(
           reportFile,
           FileType.LAB_RESULT,
           true, // Encrypt lab reports
           encryptionKey
         );
-        reportCID = reportUpload.hash;
-        await this.ipfsClient.pinContent(reportCID);
 
-        // Add report CID to lab data
+        reportCID = uploadResult.hash;
         labData.report_file_CID = reportCID;
+
+        // Pin the report
+        await this.ipfsClient.pinContent(reportCID);
       }
 
-      // 2. Upload lab result record to IPFS (encrypted)
-      const recordUpload = await this.ipfsClient.uploadLabResultRecord(labData, true);
+      // 2. Upload lab result record to IPFS
+      const recordUpload = await this.ipfsClient.uploadMedicalRecord(
+        labData,
+        true // Encrypt medical records
+      );
+
+      // Pin the record
       await this.ipfsClient.pinContent(recordUpload.hash);
 
       // 3. Store CID in smart contract
@@ -187,16 +176,17 @@ export class MedicalRecordsIPFSIntegration {
         patientWallet,
         ethers.keccak256(ethers.toUtf8Bytes(providerId)),
         providerWallet,
-        ContractRecordType.LabResult,
+        1, // Lab result record type
         recordUpload.hash,
-        title,
-        true // Lab results are sensitive
+        `Lab Test: ${labData.test_name}`,
+        true, // Mark as sensitive
+        patientWallet
       );
 
       const receipt = await tx.wait();
 
       return {
-        recordCID: recordUpload.hash,
+        metadataCID: recordUpload.hash,
         reportCID,
         transactionHash: receipt.hash
       };
@@ -207,7 +197,7 @@ export class MedicalRecordsIPFSIntegration {
   }
 
   /**
-   * Create an imaging report record with IPFS storage and blockchain registration
+   * Create and store an imaging report record on IPFS and blockchain
    */
   async createImagingRecord(
     recordId: string,
@@ -216,55 +206,50 @@ export class MedicalRecordsIPFSIntegration {
     providerId: string,
     providerWallet: string,
     imagingData: ImagingReportRecord,
-    title: string,
-    reportFile?: File,
     imageFiles: File[] = [],
     encryptionKey?: string
   ): Promise<{
-    recordCID: string;
-    reportCID?: string;
+    metadataCID: string;
     imageCIDs: string[];
     transactionHash: string;
   }> {
     try {
-      let reportCID: string | undefined;
+      // 1. Upload image files to IPFS
       const imageCIDs: string[] = [];
+      const encryptedImages: ImagingReportRecord['image_CIDs'] = [];
 
-      // 1. Upload report file if provided
-      if (reportFile) {
-        const reportUpload = await this.ipfsClient.uploadFile(
-          reportFile,
-          FileType.DOCUMENT_PDF,
-          true,
+      for (const file of imageFiles) {
+        const uploadResult = await this.ipfsClient.uploadFile(
+          file,
+          this.getFileTypeFromFile(file),
+          true, // Encrypt medical images
           encryptionKey
         );
-        reportCID = reportUpload.hash;
-        await this.ipfsClient.pinContent(reportCID);
-        imagingData.report_file_CID = reportCID;
-      }
 
-      // 2. Upload image files
-      const imageCIDMetadata: ImagingReportRecord['image_CIDs'] = [];
-      for (const imageFile of imageFiles) {
-        const imageUpload = await this.ipfsClient.uploadFile(
-          imageFile,
-          this.getFileTypeFromFile(imageFile),
-          true,
-          encryptionKey
-        );
-        imageCIDs.push(imageUpload.hash);
-        imageCIDMetadata.push({
-          image_name: imageFile.name,
-          file_type: imageFile.type.includes('dicom') ? 'DICOM' : 'IMAGE',
-          image_CID: imageUpload.hash
+        imageCIDs.push(uploadResult.hash);
+        encryptedImages?.push({
+          image_CID: uploadResult.hash,
+          image_name: file.name,
+          file_type: file.type.includes('dicom') ? 'DICOM' : 'Standard'
         });
-        await this.ipfsClient.pinContent(imageUpload.hash);
+
+        // Pin images
+        await this.ipfsClient.pinContent(uploadResult.hash);
       }
 
-      imagingData.image_CIDs = imageCIDMetadata;
+      // 2. Add images to imaging data
+      const completeImagingData: ImagingReportRecord = {
+        ...imagingData,
+        image_CIDs: encryptedImages
+      };
 
       // 3. Upload imaging record to IPFS
-      const recordUpload = await this.ipfsClient.uploadImagingReportRecord(imagingData, true);
+      const recordUpload = await this.ipfsClient.uploadMedicalRecord(
+        completeImagingData,
+        true // Encrypt medical records
+      );
+
+      // Pin the record
       await this.ipfsClient.pinContent(recordUpload.hash);
 
       // 4. Store CID in smart contract
@@ -274,17 +259,17 @@ export class MedicalRecordsIPFSIntegration {
         patientWallet,
         ethers.keccak256(ethers.toUtf8Bytes(providerId)),
         providerWallet,
-        ContractRecordType.ImagingReport,
+        2, // Imaging record type
         recordUpload.hash,
-        title,
-        true // Imaging reports are sensitive
+        `${imagingData.exam_name} - ${imagingData.body_part}`,
+        true, // Mark as sensitive
+        patientWallet
       );
 
       const receipt = await tx.wait();
 
       return {
-        recordCID: recordUpload.hash,
-        reportCID,
+        metadataCID: recordUpload.hash,
         imageCIDs,
         transactionHash: receipt.hash
       };
@@ -295,7 +280,7 @@ export class MedicalRecordsIPFSIntegration {
   }
 
   /**
-   * Create a mental health record (highly sensitive)
+   * Create and store a mental health record on IPFS and blockchain
    */
   async createMentalHealthRecord(
     recordId: string,
@@ -304,18 +289,19 @@ export class MedicalRecordsIPFSIntegration {
     providerId: string,
     providerWallet: string,
     mentalHealthData: MentalHealthRecord,
-    title: string,
-    encryptionKey: string // Required for mental health records
+    encryptionKey?: string
   ): Promise<{
-    recordCID: string;
+    metadataCID: string;
     transactionHash: string;
   }> {
     try {
-      // Mental health records are always encrypted with strong encryption
-      const recordUpload = await this.ipfsClient.uploadMentalHealthRecord(
-        mentalHealthData, 
-        true // Always encrypted
+      // Upload mental health record to IPFS
+      const recordUpload = await this.ipfsClient.uploadMedicalRecord(
+        mentalHealthData,
+        true // Always encrypt mental health records
       );
+
+      // Pin the record
       await this.ipfsClient.pinContent(recordUpload.hash);
 
       // Store CID in smart contract
@@ -325,16 +311,17 @@ export class MedicalRecordsIPFSIntegration {
         patientWallet,
         ethers.keccak256(ethers.toUtf8Bytes(providerId)),
         providerWallet,
-        ContractRecordType.Consultation, // Use consultation for mental health
+        3, // Mental health record type
         recordUpload.hash,
-        title,
-        true // Always sensitive
+        `Mental Health: ${mentalHealthData.session_type}`,
+        true, // Mark as sensitive
+        patientWallet
       );
 
       const receipt = await tx.wait();
 
       return {
-        recordCID: recordUpload.hash,
+        metadataCID: recordUpload.hash,
         transactionHash: receipt.hash
       };
     } catch (error) {
@@ -343,48 +330,6 @@ export class MedicalRecordsIPFSIntegration {
     }
   }
 
-  /**
-   * Create a prescription record
-   */
-  async createPrescriptionRecord(
-    recordId: string,
-    patientId: string,
-    patientWallet: string,
-    providerId: string,
-    providerWallet: string,
-    prescriptionData: PrescriptionRecord,
-    title: string
-  ): Promise<{
-    recordCID: string;
-    transactionHash: string;
-  }> {
-    try {
-      const recordUpload = await this.ipfsClient.uploadPrescriptionRecord(prescriptionData, false);
-      await this.ipfsClient.pinContent(recordUpload.hash);
-
-      const tx = await this.contract.addMedicalRecord(
-        ethers.keccak256(ethers.toUtf8Bytes(recordId)),
-        ethers.keccak256(ethers.toUtf8Bytes(patientId)),
-        patientWallet,
-        ethers.keccak256(ethers.toUtf8Bytes(providerId)),
-        providerWallet,
-        ContractRecordType.Prescription,
-        recordUpload.hash,
-        title,
-        false // Prescriptions are semi-public
-      );
-
-      const receipt = await tx.wait();
-
-      return {
-        recordCID: recordUpload.hash,
-        transactionHash: receipt.hash
-      };
-    } catch (error) {
-      console.error('Failed to create prescription record:', error);
-      throw error;
-    }
-  }
   /**
    * Retrieve encounter record from IPFS using CID from smart contract
    */
@@ -474,22 +419,6 @@ export class MedicalRecordsIPFSIntegration {
   }
 
   /**
-   * Helper method to determine file type from file extension/mime type
-   */
-  private getFileTypeFromFile(file: File): FileType {
-    const fileType = file.type.toLowerCase();
-    const fileName = file.name.toLowerCase();
-
-    if (fileType.includes('pdf')) return FileType.DOCUMENT_PDF;
-    if (fileType.includes('dicom') || fileName.includes('.dcm')) return FileType.DICOM_IMAGE;
-    if (fileType.startsWith('image/')) return FileType.MEDICAL_IMAGE;
-    if (fileName.includes('xray') || fileName.includes('x-ray')) return FileType.X_RAY_IMAGE;
-    if (fileName.includes('lab') && fileType.includes('pdf')) return FileType.LAB_RESULT;
-    
-    return FileType.BINARY_FILE;
-  }
-
-  /**
    * Retrieve all records for a patient from IPFS
    */
   async getPatientRecords(
@@ -552,213 +481,88 @@ export class MedicalRecordsIPFSIntegration {
       throw error;
     }
   }
-      
-      // 2. Download current metadata
-      const currentMetadata = await this.ipfsClient.downloadJSON<MedicalRecordMetadata>(
-        contractData.recordCID,
-        contractData.isSensitive,
-        encryptionKey
-      );
 
-      // 3. Merge updates
-      const newMetadata = {
-        ...currentMetadata,
-        ...updatedMetadata,
-        updatedAt: Date.now()
-      };
+  /**
+   * Helper method to determine file type from file extension/mime type
+   */
+  private getFileTypeFromFile(file: File): FileType {
+    const fileType = file.type.toLowerCase();
+    const fileName = file.name.toLowerCase();
 
-      // 4. Upload new metadata
-      const uploadResult = await this.ipfsClient.uploadMedicalRecord(
-        newMetadata,
-        contractData.isSensitive
-      );
-
-      // Pin new metadata
-      await this.ipfsClient.pinContent(uploadResult.hash);
-
-      // 5. Update smart contract (if contract has update function)
-      // Note: You might need to add an updateMedicalRecordCID function to your contract
-      /*
-      const tx = await this.contract.updateMedicalRecordCID(
-        recordIdHash,
-        uploadResult.hash
-      );
-      const receipt = await tx.wait();
-      */
-
-      return {
-        newMetadataCID: uploadResult.hash,
-        transactionHash: 'update-tx-hash' // receipt.hash when update function is implemented
-      };
-    } catch (error) {
-      console.error('Failed to update medical record:', error);
-      throw error;
-    }
-  }
-
-  private getFileTypeFromMimeType(mimeType: string): FileType {
-    if (mimeType === 'application/pdf') return FileType.DOCUMENT_PDF;
-    if (mimeType.startsWith('image/')) return FileType.MEDICAL_IMAGE;
-    if (mimeType === 'application/json') return FileType.MEDICAL_RECORD_JSON;
+    if (fileType.includes('pdf')) return FileType.DOCUMENT_PDF;
+    if (fileType.includes('dicom') || fileName.includes('.dcm')) return FileType.DICOM_IMAGE;
+    if (fileType.startsWith('image/')) return FileType.MEDICAL_IMAGE;
+    if (fileName.includes('xray') || fileName.includes('x-ray')) return FileType.X_RAY_IMAGE;
+    if (fileName.includes('lab') && fileType.includes('pdf')) return FileType.LAB_RESULT;
+    
     return FileType.BINARY_FILE;
   }
 
-  private getRecordTypeString(recordType: number): string {
-    const types = [
-      'General',
-      'Diagnostic',
-      'Prescription',
-      'LabResult',
-      'Imaging',
-      'Surgery',
-      'Mental',
-      'Genetic'
-    ];
-    return types[recordType] || 'General';
+  /**
+   * Get IPFS client instance for direct operations
+   */
+  getIPFSClient(): IPFSClient {
+    return this.ipfsClient;
   }
 }
 
 /**
- * Provider Registry Contract Integration
+ * Utility functions for creating medical record instances
  */
-export class ProviderRegistryIPFSIntegration {
-  private ipfsClient: IPFSClient;
-  private contract: ethers.Contract;
 
-  constructor(ipfsClient: IPFSClient, contract: ethers.Contract) {
-    this.ipfsClient = ipfsClient;
-    this.contract = contract;
-  }
-
-  /**
-   * Register provider with IPFS profile storage
-   */
-  async registerProvider(
-    providerAddress: string,
-    providerId: string,
-    profile: ProviderProfile,
-    providerType: number
-  ): Promise<{
-    profileCID: string;
-    transactionHash: string;
-  }> {
-    try {
-      // 1. Upload provider profile to IPFS
-      const uploadResult = await this.ipfsClient.uploadProviderProfile(profile, false);
-
-      // Pin the profile
-      await this.ipfsClient.pinContent(uploadResult.hash);
-
-      // 2. Register with smart contract
-      const tx = await this.contract.registerProvider(
-        providerAddress,
-        ethers.keccak256(ethers.toUtf8Bytes(providerId)),
-        uploadResult.hash, // Store IPFS CID
-        providerType
-      );
-
-      const receipt = await tx.wait();
-
-      return {
-        profileCID: uploadResult.hash,
-        transactionHash: receipt.hash
-      };
-    } catch (error) {
-      console.error('Failed to register provider:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Update provider profile
-   */
-  async updateProviderProfile(
-    providerAddress: string,
-    updatedProfile: Partial<ProviderProfile>
-  ): Promise<{
-    newProfileCID: string;
-    transactionHash: string;
-  }> {
-    try {
-      // 1. Get current profile CID from contract
-      const contractData = await this.contract.getProviderProfile(providerAddress);
-      
-      // 2. Download current profile
-      const currentProfile = await this.ipfsClient.downloadJSON<ProviderProfile>(
-        contractData.providerDetailsCID,
-        false // Provider profiles are usually not encrypted
-      );
-
-      // 3. Merge updates
-      const newProfile = {
-        ...currentProfile,
-        ...updatedProfile,
-        updatedAt: Date.now()
-      };
-
-      // 4. Upload new profile
-      const uploadResult = await this.ipfsClient.uploadProviderProfile(newProfile, false);
-
-      // Pin new profile
-      await this.ipfsClient.pinContent(uploadResult.hash);
-
-      // 5. Update smart contract
-      const tx = await this.contract.updateProviderDetailsCID(uploadResult.hash);
-      const receipt = await tx.wait();
-
-      return {
-        newProfileCID: uploadResult.hash,
-        transactionHash: receipt.hash
-      };
-    } catch (error) {
-      console.error('Failed to update provider profile:', error);
-      throw error;
-    }
-  }
+export function createEncounterRecord(
+  patientId: string,
+  providerId: string,
+  encounterType: string,
+  chiefComplaint: string,
+  diagnosisList: string[]
+): EncounterRecord {
+  return {
+    record_id: `encounter_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    record_type: 'encounter',
+    created_date: new Date().toISOString(),
+    last_updated: new Date().toISOString(),
+    encounter_id: `enc_${Date.now()}`,
+    encounter_date_time: new Date().toISOString(),
+    reason_for_visit: encounterType,
+    chief_complaint: chiefComplaint,
+    history_of_present_illness: '',
+    physical_examination_findings: '',
+    diagnosis: diagnosisList.map((diag, index) => ({
+      diagnosis_code: `ICD-${index}`,
+      diagnosis_description: diag,
+      is_primary: index === 0
+    })),
+    treatments_prescribed: [],
+    medications_prescribed_at_encounter: [],
+    procedures_performed: [],
+    referrals: [],
+    follow_up_instructions: '',
+    notes: '',
+    attachments: []
+  };
 }
 
-/**
- * Factory functions to create integration instances
- */
-export function createMedicalRecordsIntegration(
-  contractAddress: string,
-  contractABI: any,
-  signer: ethers.Signer
-): MedicalRecordsIPFSIntegration {
-  const config = getPrimaryStorageConfig();
-  let ipfsClient: IPFSClient;
-
-  // Create appropriate IPFS client based on config
-  if (config.provider === 'pinata' && config.apiKey && config.secretKey) {
-    ipfsClient = createPinataClient(config.apiKey, config.secretKey);
-  } else if (config.provider === 'infura' && config.projectId && config.secretKey) {
-    ipfsClient = createInfuraClient(config.projectId, config.secretKey);
-  } else {
-    throw new Error('No valid IPFS configuration found');
-  }
-
-  const contract = new ethers.Contract(contractAddress, contractABI, signer);
-  
-  return new MedicalRecordsIPFSIntegration(ipfsClient, contract);
-}
-
-export function createProviderRegistryIntegration(
-  contractAddress: string,
-  contractABI: any,
-  signer: ethers.Signer
-): ProviderRegistryIPFSIntegration {
-  const config = getPrimaryStorageConfig();
-  let ipfsClient: IPFSClient;
-
-  if (config.provider === 'pinata' && config.apiKey && config.secretKey) {
-    ipfsClient = createPinataClient(config.apiKey, config.secretKey);
-  } else if (config.provider === 'infura' && config.projectId && config.secretKey) {
-    ipfsClient = createInfuraClient(config.projectId, config.secretKey);
-  } else {
-    throw new Error('No valid IPFS configuration found');
-  }
-
-  const contract = new ethers.Contract(contractAddress, contractABI, signer);
-  
-  return new ProviderRegistryIPFSIntegration(ipfsClient, contract);
+export function createLabResultRecord(
+  patientId: string,
+  providerId: string,
+  testName: string,
+  results: any[]
+): LabResultRecord {
+  return {
+    record_id: `lab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    record_type: 'lab_result',
+    created_date: new Date().toISOString(),
+    last_updated: new Date().toISOString(),
+    lab_result_id: `lab_${Date.now()}`,
+    test_name: testName,
+    test_code: '',
+    collection_date: new Date().toISOString(),
+    result_date: new Date().toISOString(),
+    results_data: results,
+    interpretation_notes: '',
+    status: 'completed',
+    report_file_CID: '',
+    attachments: []
+  };
 }

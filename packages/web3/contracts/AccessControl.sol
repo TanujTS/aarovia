@@ -64,6 +64,20 @@ contract AccessControl {
     
     // Record-specific access permissions
     mapping(bytes32 => mapping(address => bool)) public recordSpecificAccess;
+    
+    // General provider access: patientId => providerAddress => expiry
+    mapping(bytes32 => mapping(address => uint256)) public generalProviderAccess;
+    
+    // Record access with expiry: recordId => providerAddress => expiry
+    mapping(bytes32 => mapping(address => uint256)) public recordAccess;
+    
+    // Track providers with access to a patient (for efficient querying)
+    mapping(bytes32 => address[]) public patientProviders;
+    mapping(bytes32 => mapping(address => uint256)) public patientProviderIndex;
+    
+    // Track patients that granted access to a provider (for efficient querying)
+    mapping(address => bytes32[]) public providerPatients;
+    mapping(address => mapping(bytes32 => uint256)) public providerPatientIndex;
 
     // Events
     event RoleAssigned(address indexed user, Role role);
@@ -73,6 +87,12 @@ contract AccessControl {
     event EmergencyAccessRevoked(address indexed provider);
     event AdminAdded(address indexed admin);
     event AdminRemoved(address indexed admin);
+    
+    // New events for the requested functionality
+    event AccessGranted(bytes32 indexed recordId, bytes32 indexed patientId, address indexed providerAddress, uint256 expiryTimestamp);
+    event AccessRevoked(bytes32 indexed recordId, bytes32 indexed patientId, address indexed providerAddress);
+    event GeneralAccessGranted(bytes32 indexed patientId, address indexed providerAddress, uint256 expiryTimestamp);
+    event GeneralAccessRevoked(bytes32 indexed patientId, address indexed providerAddress);
 
     // Modifiers
     modifier onlyAdmin() {
@@ -314,5 +334,239 @@ contract AccessControl {
      */
     function isAdmin(address _user) external view returns (bool) {
         return admins[_user];
+    }
+
+    // =============================================
+    // NEW ACCESS CONTROL FUNCTIONS
+    // =============================================
+
+    /**
+     * @dev Patient grants access to a specific record for a provider
+     * @param _recordId The record ID
+     * @param _providerAddress The provider's address
+     * @param _durationInSeconds Duration of access in seconds (0 for permanent)
+     */
+    function grantAccessToRecord(
+        bytes32 _recordId, 
+        address _providerAddress, 
+        uint256 _durationInSeconds
+    ) external {
+        require(roles[msg.sender] == Role.Patient, "Only patients can grant record access");
+        require(_providerAddress != address(0), "Invalid provider address");
+        
+        // Calculate expiry timestamp
+        uint256 expiryTimestamp = _durationInSeconds == 0 ? 0 : block.timestamp + _durationInSeconds;
+        
+        // Grant access
+        recordAccess[_recordId][_providerAddress] = expiryTimestamp;
+        
+        // Emit event - we need to derive patientId, for now we'll use a hash of msg.sender
+        bytes32 patientId = keccak256(abi.encodePacked(msg.sender));
+        emit AccessGranted(_recordId, patientId, _providerAddress, expiryTimestamp);
+    }
+
+    /**
+     * @dev Patient revokes access to a specific record
+     * @param _recordId The record ID
+     * @param _providerAddress The provider's address
+     */
+    function revokeAccessToRecord(bytes32 _recordId, address _providerAddress) external {
+        require(roles[msg.sender] == Role.Patient, "Only patients can revoke record access");
+        require(recordAccess[_recordId][_providerAddress] > 0, "No access granted");
+        
+        // Revoke access
+        delete recordAccess[_recordId][_providerAddress];
+        
+        // Emit event
+        bytes32 patientId = keccak256(abi.encodePacked(msg.sender));
+        emit AccessRevoked(_recordId, patientId, _providerAddress);
+    }
+
+    /**
+     * @dev Patient grants a provider access to all current and future records
+     * @param _patientId The patient's ID
+     * @param _providerAddress The provider's address
+     * @param _durationInSeconds Duration of access in seconds (0 for permanent)
+     */
+    function grantGeneralAccessToProvider(
+        bytes32 _patientId,
+        address _providerAddress,
+        uint256 _durationInSeconds
+    ) external onlyPatient(_patientId) {
+        require(_providerAddress != address(0), "Invalid provider address");
+        
+        // Calculate expiry timestamp
+        uint256 expiryTimestamp = _durationInSeconds == 0 ? 0 : block.timestamp + _durationInSeconds;
+        
+        // Grant general access
+        generalProviderAccess[_patientId][_providerAddress] = expiryTimestamp;
+        
+        // Add to tracking arrays if not already present
+        if (patientProviderIndex[_patientId][_providerAddress] == 0) {
+            patientProviders[_patientId].push(_providerAddress);
+            patientProviderIndex[_patientId][_providerAddress] = patientProviders[_patientId].length;
+        }
+        
+        if (providerPatientIndex[_providerAddress][_patientId] == 0) {
+            providerPatients[_providerAddress].push(_patientId);
+            providerPatientIndex[_providerAddress][_patientId] = providerPatients[_providerAddress].length;
+        }
+        
+        emit GeneralAccessGranted(_patientId, _providerAddress, expiryTimestamp);
+    }
+
+    /**
+     * @dev Patient revokes general access from a provider
+     * @param _patientId The patient's ID
+     * @param _providerAddress The provider's address
+     */
+    function revokeGeneralAccessToProvider(bytes32 _patientId, address _providerAddress) external onlyPatient(_patientId) {
+        require(generalProviderAccess[_patientId][_providerAddress] > 0, "No general access granted");
+        
+        // Revoke general access
+        delete generalProviderAccess[_patientId][_providerAddress];
+        
+        // Remove from tracking arrays
+        _removeProviderFromPatient(_patientId, _providerAddress);
+        _removePatientFromProvider(_providerAddress, _patientId);
+        
+        emit GeneralAccessRevoked(_patientId, _providerAddress);
+    }
+
+    /**
+     * @dev Checks if an accessor has access to a specific record
+     * @param _recordId The record ID
+     * @param _accessorAddress The accessor's address
+     * @return hasAccess Whether access is granted
+     */
+    function checkAccess(bytes32 _recordId, address _accessorAddress) external view returns (bool hasAccess) {
+        // Admin always has access
+        if (admins[_accessorAddress]) {
+            return true;
+        }
+
+        // Emergency providers have access to all records
+        if (emergencyProviders[_accessorAddress]) {
+            return true;
+        }
+
+        // Check record-specific access
+        uint256 recordAccessExpiry = recordAccess[_recordId][_accessorAddress];
+        if (recordAccessExpiry > 0) {
+            return recordAccessExpiry == 0 || block.timestamp <= recordAccessExpiry;
+        }
+
+        // Check record-specific legacy access
+        if (recordSpecificAccess[_recordId][_accessorAddress]) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * @dev Returns list of providers with access to a patient's records
+     * @param _patientId The patient's ID
+     * @return providers Array of provider addresses
+     */
+    function getProvidersWithAccess(bytes32 _patientId) external view returns (address[] memory providers) {
+        address[] memory allProviders = patientProviders[_patientId];
+        uint256 activeCount = 0;
+        
+        // Count active providers
+        for (uint256 i = 0; i < allProviders.length; i++) {
+            uint256 expiry = generalProviderAccess[_patientId][allProviders[i]];
+            if (expiry > 0 && (expiry == 0 || block.timestamp <= expiry)) {
+                activeCount++;
+            }
+        }
+        
+        // Create result array
+        providers = new address[](activeCount);
+        uint256 index = 0;
+        
+        for (uint256 i = 0; i < allProviders.length; i++) {
+            uint256 expiry = generalProviderAccess[_patientId][allProviders[i]];
+            if (expiry > 0 && (expiry == 0 || block.timestamp <= expiry)) {
+                providers[index] = allProviders[i];
+                index++;
+            }
+        }
+        
+        return providers;
+    }
+
+    /**
+     * @dev Returns list of patients who have granted access to a provider
+     * @param _providerAddress The provider's address
+     * @return patients Array of patient IDs
+     */
+    function getPatientsGrantedAccessTo(address _providerAddress) external view returns (bytes32[] memory patients) {
+        bytes32[] memory allPatients = providerPatients[_providerAddress];
+        uint256 activeCount = 0;
+        
+        // Count active patients
+        for (uint256 i = 0; i < allPatients.length; i++) {
+            uint256 expiry = generalProviderAccess[allPatients[i]][_providerAddress];
+            if (expiry > 0 && (expiry == 0 || block.timestamp <= expiry)) {
+                activeCount++;
+            }
+        }
+        
+        // Create result array
+        patients = new bytes32[](activeCount);
+        uint256 index = 0;
+        
+        for (uint256 i = 0; i < allPatients.length; i++) {
+            uint256 expiry = generalProviderAccess[allPatients[i]][_providerAddress];
+            if (expiry > 0 && (expiry == 0 || block.timestamp <= expiry)) {
+                patients[index] = allPatients[i];
+                index++;
+            }
+        }
+        
+        return patients;
+    }
+
+    // =============================================
+    // INTERNAL HELPER FUNCTIONS
+    // =============================================
+
+    /**
+     * @dev Remove provider from patient's provider list
+     */
+    function _removeProviderFromPatient(bytes32 _patientId, address _providerAddress) internal {
+        uint256 index = patientProviderIndex[_patientId][_providerAddress];
+        if (index > 0) {
+            address[] storage providers = patientProviders[_patientId];
+            uint256 lastIndex = providers.length - 1;
+            
+            if (index - 1 != lastIndex) {
+                providers[index - 1] = providers[lastIndex];
+                patientProviderIndex[_patientId][providers[lastIndex]] = index;
+            }
+            
+            providers.pop();
+            delete patientProviderIndex[_patientId][_providerAddress];
+        }
+    }
+
+    /**
+     * @dev Remove patient from provider's patient list
+     */
+    function _removePatientFromProvider(address _providerAddress, bytes32 _patientId) internal {
+        uint256 index = providerPatientIndex[_providerAddress][_patientId];
+        if (index > 0) {
+            bytes32[] storage patients = providerPatients[_providerAddress];
+            uint256 lastIndex = patients.length - 1;
+            
+            if (index - 1 != lastIndex) {
+                patients[index - 1] = patients[lastIndex];
+                providerPatientIndex[_providerAddress][patients[lastIndex]] = index;
+            }
+            
+            patients.pop();
+            delete providerPatientIndex[_providerAddress][_patientId];
+        }
     }
 }

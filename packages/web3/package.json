@@ -11,22 +11,23 @@
     "test:ipfs": "node test-pinata-simple.js"
   },
   "dependencies": {
-    "@aarovia/types": "file:../types",
+    "@aarovia/types": "*",
     "@nomicfoundation/edr": "^0.12.0-next.5",
     "@nomicfoundation/edr-win32-x64-msvc": "^0.12.0-next.5",
     "@pinata/sdk": "^2.1.0",
     "@web3-storage/w3up-client": "^17.3.0",
     "crypto-js": "^4.2.0",
-    "dotenv": "^17.2.2",
     "drizzle-kit": "^0.18.1",
     "ipfs-http-client": "^60.0.1",
     "next": "14.2.32",
     "pinata-web3": "^0.5.4",
     "viem": "^2.37.7",
-    "web3.storage": "^4.5.5"
+    "web3.storage": "^4.5.5",
+    "dotenv": "^16.3.1"
   },
   "devDependencies": {
-    "@aarovia/config": "file:../config",
+    "@aarovia/eslint-config": "*",
+    "@aarovia/typescript-config": "*",
     "@nomicfoundation/hardhat-ignition": "^3.0.3",
     "@nomicfoundation/hardhat-toolbox-mocha-ethers": "^3.0.0",
     "@types/chai": "^4.3.20",
@@ -38,8 +39,7 @@
     "ethers": "^6.15.0",
     "forge-std": "github:foundry-rs/forge-std#v1.9.4",
     "hardhat": "^3.0.6",
-    "mocha": "^11.7.2",
-    "typescript": "~5.8.0"
+    "mocha": "^11.7.2"
   },
   "type": "module"
 }

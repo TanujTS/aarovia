@@ -3,16 +3,15 @@
   "version": "1.0.0",
   "description": "Shared TypeScript types for medical records platform",
   "private": true,
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
-    "clean": "rm -rf dist",
-    "type-check": "tsc --noEmit"
+  "exports": {
+    ".": "./src/index.ts"
   },
   "devDependencies": {
     "typescript": "^5.2.2",
-    "@aarovia/config": "file:../config"
+  },
+  "scripts": {
+    "build": "tsc",
+    "lint": "echo 'No linting needed for types package'",
+    "check-types": "tsc --noEmit"
   }
 }

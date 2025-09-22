@@ -1,37 +1,25 @@
 {
-  "name": "aarovia",
-  "version": "1.0.0",
-  "description": "Decentralized Medical Records Platform",
+  "name": "devjams",
+  "devDependencies": {
+    "prettier": "^3.6.2",
+    "turbo": "^2.5.6",
+    "typescript": "5.9.2"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "packageManager": "bun@1.2.21",
   "private": true,
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "check-types": "turbo run check-types"
+  },
   "workspaces": [
     "apps/*",
     "packages/*"
-  ],
-  "scripts": {
-    "build": "turbo build",
-    "dev": "turbo dev",
-    "lint": "turbo lint",
-    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
-    "clean": "turbo clean",
-    "type-check": "turbo type-check",
-    "test": "turbo test",
-    "setup": "bun install && bun run build",
-    "db:generate": "turbo db:generate",
-    "db:push": "turbo db:push",
-    "db:migrate": "turbo db:migrate"
-  },
-  "devDependencies": {
-    "@turbo/gen": "^1.10.12",
-    "@types/babel__traverse": "^7.28.0",
-    "@types/node": "^24.5.2",
-    "eslint": "^8.57.0",
-    "prettier": "^3.0.3",
-    "turbo": "^1.10.12",
-    "typescript": "^5.2.2"
-  },
-  "dependencies": {
-    "ethers": "^6.15.0",
-    "hardhat": "^3.0.6",
-    "web3": "^4.16.0"
-  }
+  ]
 }
+

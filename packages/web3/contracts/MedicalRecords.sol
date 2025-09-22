@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/security/Pausable.sol";
-
+import "@openzeppelin/contracts/access/Ownable.sol";      // ✅ Correct path
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol"; // ✅ Correct path
+import "@openzeppelin/contracts/utils/Pausable.sol";       // ✅ Correct path
 /**
  * @title MedicalRecords
- * @dev Smart contract for managing decentralized medical records
+ * @dev Smart contract for managing decentralized data records with access control
  */
 contract MedicalRecords is Ownable, ReentrancyGuard, Pausable {
     
@@ -60,7 +59,7 @@ contract MedicalRecords is Ownable, ReentrancyGuard, Pausable {
     event RecordCreated(uint256 indexed recordId, address indexed owner, string title, uint256 timestamp);
     event AccessGranted(uint256 indexed recordId, address indexed owner, address indexed grantee, uint256 timestamp);
     
-    constructor() {
+    constructor() Ownable(msg.sender) {
         recordCounter = 0;
         userCounter = 0;
     }

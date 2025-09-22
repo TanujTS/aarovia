@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
 
-// Smart contract ABI for medical records access control
+// Smart contract ABI for data records access control
 export const MEDICAL_RECORDS_ACCESS_ABI = [
   // Grant access to a medical record
   'function grantAccess(bytes32 recordHash, address provider, uint256 expiresAt, string[] permissions) external',

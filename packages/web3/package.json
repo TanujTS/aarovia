@@ -1,10 +1,13 @@
 {
-  "name": "@aarovia/web3",
+  "name": "@repo/web3",
   "version": "1.0.0",
-  "description": "Web3 and blockchain utilities for medical records platform",
+  "type": "module",
+  "description": "Web3 and blockchain utilities for Aarovia platform",
   "private": true,
-  "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
     "build": "bun run tsc",
     "dev": "bun run tsc --watch",
@@ -12,32 +15,27 @@
     "type-check": "bun run tsc --noEmit",
     "compile": "bun run hardhat compile",
     "test": "bun run hardhat test",
-    "deploy": "bun run hardhat ignition deploy ./ignition/modules/MedicalRecords.ts",
-    "deploy:mumbai": "bun run hardhat ignition deploy ./ignition/modules/MedicalRecords.ts --network polygonMumbai",
-    "deploy:polygon": "bun run hardhat ignition deploy ./ignition/modules/MedicalRecords.ts --network polygon"
+    "deploy": "bun run hardhat ignition deploy ./ignition/modules/MedicalRecords.ts"
   },
   "dependencies": {
-    "@aarovia/types": "file:../types",
     "@nomicfoundation/edr": "^0.12.0-next.5",
     "@nomicfoundation/edr-win32-x64-msvc": "^0.12.0-next.5",
-    "@openzeppelin/contracts": "^4.9.6",
-    "openzeppelin": "^1.0.0",
+    "@openzeppelin/contracts": "^5.4.0",
+    "@repo/types": "*",
     "viem": "^1.19.9"
   },
   "devDependencies": {
-    "@aarovia/config": "file:../config",
     "@nomicfoundation/hardhat-ignition": "^3.0.3",
     "@nomicfoundation/hardhat-toolbox-mocha-ethers": "^3.0.0",
     "@types/chai": "^4.3.20",
     "@types/chai-as-promised": "^8.0.2",
     "@types/mocha": "^10.0.10",
-    "@types/node": "^22.18.6",
+    "@types/node": "^24.5.2",
     "chai": "^5.3.3",
     "ethers": "^6.15.0",
     "forge-std": "github:foundry-rs/forge-std#v1.9.4",
     "hardhat": "^3.0.6",
     "mocha": "^11.7.2",
-    "typescript": "~5.8.0"
-  },
-  "type": "module"
+    "typescript": "^5.9.2"
+  }
 }

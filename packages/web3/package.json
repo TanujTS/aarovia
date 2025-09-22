@@ -3,8 +3,6 @@
   "version": "1.0.0",
   "description": "Web3 and blockchain utilities for medical records platform",
   "private": true,
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",

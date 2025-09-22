@@ -1,5 +1,5 @@
 import { ethers } from "ethers"
-import { MEDICAL_RECORDS_STORAGE_ABI } from "@aarovia/web3"
+import { MEDICAL_RECORDS_STORAGE_ABI } from "@repo/web3"
 
 const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
 

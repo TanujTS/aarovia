@@ -6,9 +6,9 @@ import { Providers } from '../components/providers'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'MedChain - Decentralized Medical Records',
-  description: 'Secure, patient-controlled medical record management on the blockchain',
-  keywords: ['medical records', 'blockchain', 'healthcare', 'web3', 'decentralized'],
+  title: 'Aarovia - Decentralized Data Platform',
+  description: 'Secure, blockchain-powered platform for decentralized data management with IPFS storage',
+  keywords: ['blockchain', 'web3', 'decentralized', 'data management', 'IPFS'],
 }
 
 export default function RootLayout({

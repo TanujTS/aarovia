@@ -1,18 +1,15 @@
 {
-  "name": "@aarovia/types",
+  "name": "@repo/types",
   "version": "1.0.0",
+  "type": "module",
   "description": "Shared TypeScript types for medical records platform",
   "private": true,
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "scripts": {
-    "build": "bun run tsc",
-    "dev": "bun run tsc --watch",
-    "clean": "rm -rf dist",
-    "type-check": "bun run tsc --noEmit"
+  "exports": {
+    ".": "./index.ts"
   },
   "devDependencies": {
-    "typescript": "^5.2.2",
-    "@aarovia/config": "file:../config"
+    "typescript": "^5.9.2"
   }
 }

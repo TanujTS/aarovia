@@ -3,7 +3,7 @@ import multer from 'multer';
 import { z } from 'zod';
 import { ethers } from 'ethers';
 import { authenticateToken } from './auth';
-import { uploadToIPFS } from '@aarovia/web3';
+import { uploadToIPFS } from '@repo/web3';
 
 const router = Router();
 
@@ -37,7 +37,7 @@ const getContract = () => {
   const contractAddress = process.env.NEXT_PUBLIC_MEDICAL_RECORDS_CONTRACT;
   
   if (!contractAddress) {
-    throw new Error('Medical records contract address not configured');
+    throw new Error('Aarovia contract address not configured');
   }
 
   // Contract ABI (key functions only)
@@ -125,7 +125,7 @@ router.post('/upload',
   }
 );
 
-// Get user's medical records
+// Get user's data records
 router.get('/my-records', authenticateToken, async (req: any, res) => {
   try {
     const userAddress = req.user.address;

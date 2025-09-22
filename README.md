@@ -1,16 +1,16 @@
-# 🏥 Decentralized Medical Records Platform
+# 🚀 Aarovia
 
-A revolutionary blockchain-powered platform for secure, patient-controlled medical record management built on Polygon with IPFS storage and end-to-end encryption.
+A revolutionary blockchain-powered platform for secure, decentralized data management built on Polygon with IPFS storage and end-to-end encryption.
 
 ## ✨ Key Features
 
-- **🔐 End-to-End Encryption**: All medical files are encrypted client-side before upload
+- **🔐 End-to-End Encryption**: All files are encrypted client-side before upload
 - **🌐 Decentralized Storage**: Files stored on IPFS with Web3.Storage
 - **⛓️ Blockchain Security**: Access control managed via smart contracts on Polygon
 - **👛 Custodial Wallets**: Seamless user experience with server-managed wallets
 - **📧 Email/OTP Authentication**: No crypto knowledge required for users
 - **🆘 Emergency Access**: ICE (In Case of Emergency) profiles for critical situations
-- **🔄 Access Control**: Grant/revoke access to medical records with expiration dates
+- **🔄 Access Control**: Grant/revoke access to records with expiration dates
 - **📱 Responsive Design**: Modern UI that works on all devices
 
 ## 🏗️ Project Structure

@@ -3,6 +3,7 @@
 import { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useState } from 'react'
+import { Web3Providers } from './web3-provider'
 
 interface ProvidersProps {
   children: ReactNode
@@ -21,7 +22,9 @@ export function Providers({ children }: ProvidersProps) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {children}
+      <Web3Providers>
+        {children}
+      </Web3Providers>
     </QueryClientProvider>
   )
 }
